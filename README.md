@@ -132,7 +132,10 @@ Attach images, documents, or code files and Claude can read and analyze them.
 
 ## Security
 
+**Self-hosted architecture** — The bot runs entirely on your own PC/server. No external servers involved, and no data leaves your machine except through Discord and the Anthropic API (which uses your own Claude Code login session).
+
 - `ALLOWED_USER_IDS` whitelist-based authentication
+- Discord servers are private by default (no access without invite link)
 - Per-minute request rate limiting
 - Path traversal (`..`) blocked
 - Tool use default: requires user approval each time

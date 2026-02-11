@@ -130,7 +130,10 @@ claudecode-discord/
 
 ## 보안
 
+**셀프 호스팅 구조** — 봇은 본인의 PC/서버에서 직접 실행됩니다. 외부 서버를 거치지 않으며, Discord와 Anthropic API(본인의 Claude Code 로그인 세션 사용)를 통한 통신 외에 데이터가 외부로 나가지 않습니다.
+
 - `ALLOWED_USER_IDS` 화이트리스트 기반 인증
+- Discord 서버는 기본적으로 비공개 (초대 링크 없이 접근 불가)
 - 분당 요청 수 제한 (rate limit)
 - 프로젝트 경로 `..` 순회 차단
 - tool use 기본값: 매번 사용자 승인 요청
