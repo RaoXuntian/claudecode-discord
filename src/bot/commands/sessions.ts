@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import readline from "node:readline";
-import { getProject } from "../../db/database.js";
+import { getProject, getSession } from "../../db/database.js";
 
 interface SessionInfo {
   sessionId: string;
@@ -27,8 +27,8 @@ export function findSessionDir(projectPath: string): string | null {
   const claudeDir = path.join(os.homedir(), ".claude", "projects");
   if (!fs.existsSync(claudeDir)) return null;
 
-  // Try simple conversion first
-  const simpleName = projectPath.replace(/[\\/]/g, "-");
+  // Try simple conversion first (Claude Code encodes / and _ as -)
+  const simpleName = projectPath.replace(/[\\/\_]/g, "-");
   const simplePath = path.join(claudeDir, simpleName);
   if (fs.existsSync(simplePath)) return simplePath;
 
@@ -127,7 +127,7 @@ async function listSessions(projectPath: string): Promise<SessionInfo[]> {
     if (stat.size < 512) continue;
 
     const sessionId = file.replace(".jsonl", "");
-    const { text, timestamp } = await getFirstUserMessage(filePath);
+    const { text } = await getFirstUserMessage(filePath);
 
     // Skip sessions with no actual user message
     if (text === "(empty session)") continue;
@@ -135,7 +135,7 @@ async function listSessions(projectPath: string): Promise<SessionInfo[]> {
     sessions.push({
       sessionId,
       firstMessage: text.slice(0, 80),
-      timestamp: timestamp || stat.mtime.toISOString(),
+      timestamp: stat.mtime.toISOString(),
       fileSize: stat.size,
     });
   }
@@ -172,23 +172,38 @@ export async function execute(
     return;
   }
 
+  // Check currently active session for this channel
+  const dbSession = getSession(channelId);
+  const activeSessionId = dbSession?.session_id ?? null;
+
   // Build select menu (max 25 options)
   const options = sessions.slice(0, 25).map((s, i) => {
     const date = new Date(s.timestamp);
-    const dateStr = date.toLocaleDateString("ko-KR", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMs / 3600000);
+    const diffDay = Math.floor(diffMs / 86400000);
+    const timeStr =
+      diffMin < 1 ? "방금" :
+      diffMin < 60 ? `${diffMin}분 전` :
+      diffHr < 24 ? `${diffHr}시간 전` :
+      diffDay < 7 ? `${diffDay}일 전` :
+      date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+
     const sizeKB = Math.round(s.fileSize / 1024);
-    const label = s.firstMessage.slice(0, 50) || `Session ${i + 1}`;
-    const desc = `${dateStr} | ${sizeKB}KB | ${s.sessionId.slice(0, 8)}...`;
+    const isActive = s.sessionId === activeSessionId;
+    const label = isActive
+      ? `▶ ${s.firstMessage.slice(0, 48)}`
+      : s.firstMessage.slice(0, 50) || `Session ${i + 1}`;
+    const desc = isActive
+      ? `사용 중 | ${timeStr} | ${sizeKB}KB`
+      : `${timeStr} | ${sizeKB}KB | ${s.sessionId.slice(0, 8)}...`;
 
     return {
       label,
-      description: desc,
+      description: desc.slice(0, 100),
       value: s.sessionId,
+      default: isActive,
     };
   });
 
