@@ -119,9 +119,9 @@ def open_folder(icon, item):
 
 
 def edit_settings(icon, item):
-    """Open settings dialog using tkinter"""
+    """Open settings dialog using GTK3 (native look) or fallback"""
     try:
-        _edit_settings_tk()
+        _edit_settings_gtk()
     except Exception:
         # Fallback: open in text editor
         env_path = os.path.join(BOT_DIR, ".env")
@@ -131,10 +131,11 @@ def edit_settings(icon, item):
             subprocess.Popen(["xdg-open", os.path.join(BOT_DIR, ".env.example")])
 
 
-def _edit_settings_tk():
-    """Edit settings using tkinter GUI with pre-filled values and dark theme"""
-    import tkinter as tk
-    from tkinter import filedialog, messagebox
+def _edit_settings_gtk():
+    """Edit settings using GTK3 native dialog with pre-filled values"""
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk, Gdk
 
     env = _load_env()
     fields = [
@@ -147,92 +148,101 @@ def _edit_settings_tk():
     ]
     defaults = {"RATE_LIMIT_PER_MINUTE": "10", "SHOW_COST": "true", "BASE_PROJECT_DIR": BOT_DIR}
 
-    # Dark theme colors
-    BG = "#2b2b2b"
-    FG = "#e0e0e0"
-    ENTRY_BG = "#3c3c3c"
-    ENTRY_FG = "#ffffff"
-    ACCENT = "#5b9bd5"
-    BTN_BG = "#404040"
-    BTN_SAVE_BG = "#5b9bd5"
-    LABEL_FG = "#b0b0b0"
+    dialog = Gtk.Dialog(
+        title="Claude Discord Bot Settings",
+        flags=0,
+    )
+    dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Save", Gtk.ResponseType.OK)
+    dialog.set_default_size(550, -1)
+    dialog.set_position(Gtk.WindowPosition.CENTER)
+    dialog.set_border_width(15)
 
-    root = tk.Tk()
-    root.title("Claude Discord Bot Settings")
-    win_w, win_h = 600, 560
-    screen_w = root.winfo_screenwidth()
-    screen_h = root.winfo_screenheight()
-    x = (screen_w - win_w) // 2
-    y = (screen_h - win_h) // 2
-    root.geometry(f"{win_w}x{win_h}+{x}+{y}")
-    root.resizable(False, False)
-    root.configure(bg=BG)
+    # Style the Save button
+    save_btn = dialog.get_widget_for_response(Gtk.ResponseType.OK)
+    save_btn.get_style_context().add_class("suggested-action")
+
+    content = dialog.get_content_area()
+    content.set_spacing(8)
 
     # Title
-    title_frame = tk.Frame(root, bg=BG)
-    title_frame.pack(fill="x", padx=20, pady=(15, 0))
-    tk.Label(title_frame, text="Claude Discord Bot", font=("", 14, "bold"), bg=BG, fg=FG).pack(anchor="w")
-    tk.Label(title_frame, text="Settings", font=("", 11), bg=BG, fg=LABEL_FG).pack(anchor="w")
+    title = Gtk.Label()
+    title.set_markup("<b><big>Claude Discord Bot Settings</big></b>")
+    title.set_halign(Gtk.Align.START)
+    content.pack_start(title, False, False, 0)
+
+    subtitle = Gtk.Label(label="Please fill in the required fields.")
+    subtitle.set_halign(Gtk.Align.START)
+    subtitle.get_style_context().add_class("dim-label")
+    content.pack_start(subtitle, False, False, 0)
 
     # Setup guide link
-    link = tk.Label(title_frame, text="📖 Open Setup Guide", fg=ACCENT, bg=BG, cursor="hand2", font=("", 9, "underline"))
-    link.pack(anchor="w", pady=(4, 0))
-    link.bind("<Button-1>", lambda e: subprocess.Popen(["xdg-open", "https://github.com/chadingTV/claudecode-discord/blob/main/SETUP.md"]))
+    link = Gtk.LinkButton.new_with_label(
+        "https://github.com/chadingTV/claudecode-discord/blob/main/SETUP.md",
+        "📖 Open Setup Guide"
+    )
+    link.set_halign(Gtk.Align.START)
+    content.pack_start(link, False, False, 0)
 
-    # Separator
-    tk.Frame(root, height=1, bg="#444444").pack(fill="x", padx=20, pady=(10, 5))
+    content.pack_start(Gtk.Separator(), False, False, 4)
 
     entries = {}
     for key, label_text in fields:
-        frame = tk.Frame(root, bg=BG)
-        frame.pack(fill="x", padx=20, pady=3)
-
-        lbl = tk.Label(frame, text=label_text, font=("", 9, "bold"), anchor="w", bg=BG, fg=LABEL_FG)
-        lbl.pack(fill="x")
-
-        entry_frame = tk.Frame(frame, bg=BG)
-        entry_frame.pack(fill="x", pady=(1, 0))
-
-        entry = tk.Entry(entry_frame, font=("", 10), bg=ENTRY_BG, fg=ENTRY_FG,
-                         insertbackground=ENTRY_FG, relief="flat", highlightthickness=1,
-                         highlightcolor=ACCENT, highlightbackground="#555555")
+        lbl = Gtk.Label()
+        lbl.set_markup(f"<b>{label_text}:</b>")
+        lbl.set_halign(Gtk.Align.START)
+        content.pack_start(lbl, False, False, 0)
 
         if key == "BASE_PROJECT_DIR":
-            entry.pack(side="left", fill="x", expand=True, ipady=3)
-            def browse_folder(e=entry):
-                path = filedialog.askdirectory(title="Select Base Project Directory")
-                if path:
-                    e.delete(0, tk.END)
-                    e.insert(0, path)
-            btn = tk.Button(entry_frame, text="Browse...", command=browse_folder,
-                            bg=BTN_BG, fg=FG, relief="flat", padx=8, cursor="hand2",
-                            activebackground="#505050", activeforeground=FG)
-            btn.pack(side="right", padx=(6, 0), ipady=1)
-        else:
-            entry.pack(fill="x", ipady=3)
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            entry = Gtk.Entry()
+            entry.set_hexpand(True)
+            hbox.pack_start(entry, True, True, 0)
 
-        # Pre-fill with current value
+            browse_btn = Gtk.Button(label="Browse...")
+            def on_browse(btn, e=entry):
+                chooser = Gtk.FileChooserDialog(
+                    title="Select Base Project Directory",
+                    action=Gtk.FileChooserAction.SELECT_FOLDER,
+                )
+                chooser.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Select", Gtk.ResponseType.OK)
+                chooser.set_position(Gtk.WindowPosition.CENTER)
+                if chooser.run() == Gtk.ResponseType.OK:
+                    e.set_text(chooser.get_filename())
+                chooser.destroy()
+            browse_btn.connect("clicked", on_browse)
+            hbox.pack_start(browse_btn, False, False, 0)
+            content.pack_start(hbox, False, False, 0)
+        else:
+            entry = Gtk.Entry()
+            content.pack_start(entry, False, False, 0)
+
+        # Pre-fill
         current = env.get(key, "")
         if key == "DISCORD_BOT_TOKEN" and len(current) > 10:
-            entry.config(show="•")
-            entry.insert(0, current)
+            entry.set_visibility(False)
+            entry.set_invisible_char('•')
+            entry.set_text(current)
         elif current:
-            entry.insert(0, current)
+            entry.set_text(current)
         else:
             default = defaults.get(key, "")
             if default:
-                entry.insert(0, default)
+                entry.set_text(default)
 
         entries[key] = entry
 
-    note = tk.Label(root, text="* Max plan users should set Show Cost to false",
-                    fg="#777777", bg=BG, font=("", 8))
-    note.pack(anchor="w", padx=20, pady=(6, 0))
+    note = Gtk.Label(label="* Max plan users should set Show Cost to false")
+    note.set_halign(Gtk.Align.START)
+    note.get_style_context().add_class("dim-label")
+    content.pack_start(note, False, False, 4)
 
-    def save():
+    dialog.show_all()
+    response = dialog.run()
+
+    if response == Gtk.ResponseType.OK:
         new_env = {}
         for key, _ in fields:
-            val = entries[key].get().strip()
+            val = entries[key].get_text().strip()
             if val:
                 new_env[key] = val
             elif key == "DISCORD_BOT_TOKEN":
@@ -241,7 +251,14 @@ def _edit_settings_tk():
                 new_env[key] = defaults.get(key, "")
 
         if not new_env.get("DISCORD_BOT_TOKEN") or not new_env.get("DISCORD_GUILD_ID") or not new_env.get("ALLOWED_USER_IDS"):
-            messagebox.showerror("Error", "Bot Token, Guild ID, and User IDs are required.")
+            err = Gtk.MessageDialog(
+                message_type=Gtk.MessageType.ERROR,
+                buttons=Gtk.ButtonsType.OK,
+                text="Bot Token, Guild ID, and User IDs are required."
+            )
+            err.run()
+            err.destroy()
+            dialog.destroy()
             return
 
         with open(ENV_PATH, "w") as f:
@@ -250,21 +267,7 @@ def _edit_settings_tk():
                     f.write("# Show estimated API cost in task results (set false for Max plan users)\n")
                 f.write(f"{key}={new_env.get(key, '')}\n")
 
-        root.destroy()
-
-    # Separator
-    tk.Frame(root, height=1, bg="#444444").pack(fill="x", padx=20, pady=(10, 0))
-
-    btn_frame = tk.Frame(root, bg=BG)
-    btn_frame.pack(pady=12)
-    tk.Button(btn_frame, text="Cancel", width=12, command=root.destroy,
-              bg=BTN_BG, fg=FG, relief="flat", padx=10, pady=4, cursor="hand2",
-              activebackground="#505050", activeforeground=FG).pack(side="left", padx=8)
-    tk.Button(btn_frame, text="Save", width=12, command=save,
-              bg=BTN_SAVE_BG, fg="#ffffff", relief="flat", padx=10, pady=4, cursor="hand2",
-              activebackground="#4a8bc4", activeforeground="#ffffff").pack(side="left", padx=8)
-
-    root.mainloop()
+    dialog.destroy()
 
 
 def _load_env():
