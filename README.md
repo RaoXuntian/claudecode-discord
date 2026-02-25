@@ -55,6 +55,8 @@ see the full setup guide at **[SETUP.md](SETUP.md)**.
 claudecode-discord/
 ├── install.sh              # macOS/Linux auto-installer
 ├── install.bat             # Windows auto-installer
+├── mac-start.sh            # macOS background launcher + menu bar
+├── menubar/                # macOS menu bar status app (Swift)
 ├── .env.example            # Environment variable template
 ├── src/
 │   ├── index.ts            # Entry point
@@ -167,6 +169,25 @@ The bot runs entirely on your own PC/server. No external servers involved, and n
 
 - The `.env` file contains your bot token — **never share it publicly.** If compromised, immediately Reset Token in Discord Developer Portal
 - `auto-approve` mode is convenient but may allow Claude to perform unintended actions — use only on trusted projects
+
+## macOS Quick Start (Background + Menu Bar)
+
+On macOS, you can run the bot as a background service with a menu bar status indicator.
+
+```bash
+./mac-start.sh          # Start (background + menu bar icon)
+./mac-start.sh --stop   # Stop
+./mac-start.sh --status # Check status
+./mac-start.sh --fg     # Foreground mode (for debugging)
+```
+
+- First run without `.env` prompts interactive setup in terminal
+- Menu bar icon: 🟢 running / 🔴 stopped / ⚙️ setup needed
+- Menu bar provides: start/stop/restart, settings editor, log viewer
+- Auto-restarts on crash, auto-starts on boot (via launchd)
+- Auto-updates from git on each start
+
+> **Note:** This feature is macOS-only (requires launchd and Swift).
 
 ## Development
 

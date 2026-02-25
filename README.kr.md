@@ -54,6 +54,8 @@ Discord 봇 생성, 환경변수 상세 설정, Windows 환경 안내, Claude Co
 claudecode-discord/
 ├── install.sh              # macOS/Linux 자동 설치 스크립트
 ├── install.bat             # Windows 자동 설치 스크립트
+├── mac-start.sh            # macOS 백그라운드 실행 + 메뉴바
+├── menubar/                # macOS 메뉴바 상태 앱 (Swift)
 ├── .env.example            # 환경변수 템플릿
 ├── src/
 │   ├── index.ts            # 엔트리포인트
@@ -166,6 +168,25 @@ claudecode-discord/
 
 - `.env` 파일에 봇 토큰이 포함되어 있으므로 **절대 외부에 공유하지 마세요**. 유출 시 Discord Developer Portal에서 즉시 Reset Token
 - `auto-approve` 모드는 편리하지만, Claude가 의도치 않은 작업을 수행할 수 있으므로 신뢰하는 프로젝트에서만 사용을 권장합니다
+
+## macOS 간편 실행 (백그라운드 + 메뉴바)
+
+macOS에서 봇을 백그라운드 서비스로 실행하고, 메뉴바에서 상태를 확인할 수 있습니다.
+
+```bash
+./mac-start.sh          # 시작 (백그라운드 + 메뉴바 아이콘)
+./mac-start.sh --stop   # 중지
+./mac-start.sh --status # 상태 확인
+./mac-start.sh --fg     # 포그라운드 모드 (디버깅용)
+```
+
+- `.env` 없이 처음 실행하면 터미널에서 대화형 설정
+- 메뉴바 아이콘: 🟢 실행 중 / 🔴 중지됨 / ⚙️ 설정 필요
+- 메뉴바에서: 시작/중지/재시작, 설정 편집, 로그 보기
+- 크래시 시 자동 재시작, 부팅 시 자동 실행 (launchd)
+- 매 시작 시 git에서 자동 업데이트
+
+> **참고:** 이 기능은 macOS 전용입니다 (launchd, Swift 필요).
 
 ## 개발 명령어
 
