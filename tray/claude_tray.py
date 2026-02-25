@@ -119,10 +119,10 @@ def open_folder(icon, item):
 
 
 def edit_settings(icon, item):
-    """Open .env file in default editor or zenity dialog"""
-    if subprocess.run(["which", "zenity"], capture_output=True).returncode == 0:
-        _edit_settings_zenity()
-    else:
+    """Open settings dialog using tkinter"""
+    try:
+        _edit_settings_tk()
+    except Exception:
         # Fallback: open in text editor
         env_path = os.path.join(BOT_DIR, ".env")
         if os.path.exists(env_path):
@@ -131,75 +131,103 @@ def edit_settings(icon, item):
             subprocess.Popen(["xdg-open", os.path.join(BOT_DIR, ".env.example")])
 
 
-def _edit_settings_zenity():
-    """Edit settings using zenity dialogs"""
+def _edit_settings_tk():
+    """Edit settings using tkinter GUI with pre-filled values"""
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
+
     env = _load_env()
     fields = [
-        ("DISCORD_BOT_TOKEN", "Discord Bot Token"),
-        ("DISCORD_GUILD_ID", "Discord Guild ID"),
-        ("ALLOWED_USER_IDS", "Allowed User IDs (comma-separated)"),
-        ("BASE_PROJECT_DIR", "Base Project Directory"),
-        ("RATE_LIMIT_PER_MINUTE", "Rate Limit Per Minute"),
-        ("SHOW_COST", "Show Cost (true/false)"),
+        ("DISCORD_BOT_TOKEN", "Discord Bot Token:"),
+        ("DISCORD_GUILD_ID", "Discord Guild ID:"),
+        ("ALLOWED_USER_IDS", "Allowed User IDs (comma-separated):"),
+        ("BASE_PROJECT_DIR", "Base Project Directory:"),
+        ("RATE_LIMIT_PER_MINUTE", "Rate Limit Per Minute:"),
+        ("SHOW_COST", "Show Cost (true/false):"),
     ]
+    defaults = {"RATE_LIMIT_PER_MINUTE": "10", "SHOW_COST": "true", "BASE_PROJECT_DIR": BOT_DIR}
 
-    # Open setup guide option
-    subprocess.Popen(["zenity", "--info", "--title=Setup Guide",
-                      "--text=Setup guide available at:\nhttps://github.com/chadingTV/claudecode-discord/blob/main/SETUP.md",
-                      "--width=400", "--timeout=3"])
+    root = tk.Tk()
+    root.title("Claude Discord Bot Settings")
+    root.geometry("500x420")
+    root.resizable(False, False)
 
-    form_args = ["zenity", "--forms", "--title=Claude Discord Bot Settings",
-                  "--text=Please fill in the required fields.\nLeave blank to keep current value.\nBase Project Directory: type path or leave blank to browse."]
-    for key, label in fields:
+    # Setup guide link
+    link = tk.Label(root, text="📖 Open Setup Guide", fg="dodgerblue", cursor="hand2", font=("", 10, "underline"))
+    link.pack(anchor="w", padx=15, pady=(10, 5))
+    link.bind("<Button-1>", lambda e: subprocess.Popen(["xdg-open", "https://github.com/chadingTV/claudecode-discord/blob/main/SETUP.md"]))
+
+    entries = {}
+    for key, label_text in fields:
+        frame = tk.Frame(root)
+        frame.pack(fill="x", padx=15, pady=2)
+
+        lbl = tk.Label(frame, text=label_text, font=("", 9, "bold"), anchor="w")
+        lbl.pack(fill="x")
+
+        entry_frame = tk.Frame(frame)
+        entry_frame.pack(fill="x")
+
+        entry = tk.Entry(entry_frame, font=("", 10))
+
+        if key == "BASE_PROJECT_DIR":
+            entry.pack(side="left", fill="x", expand=True)
+            def browse_folder(e=entry):
+                path = filedialog.askdirectory(title="Select Base Project Directory")
+                if path:
+                    e.delete(0, tk.END)
+                    e.insert(0, path)
+            btn = tk.Button(entry_frame, text="Browse...", command=browse_folder)
+            btn.pack(side="right", padx=(4, 0))
+        else:
+            entry.pack(fill="x")
+
+        # Pre-fill with current value
         current = env.get(key, "")
         if key == "DISCORD_BOT_TOKEN" and len(current) > 10:
-            display = f"(set: ••••{current[-6:]})"
+            entry.config(show="•")
+            entry.insert(0, current)
         elif current:
-            display = f"(current: {current})"
+            entry.insert(0, current)
         else:
-            display = ""
-        form_args.append(f"--add-entry={label} {display}")
+            default = defaults.get(key, "")
+            if default:
+                entry.insert(0, default)
 
-    result = subprocess.run(form_args, capture_output=True, text=True)
-    if result.returncode != 0:
-        return
+        entries[key] = entry
 
-    values = result.stdout.strip().split("|")
-    if len(values) != len(fields):
-        return
+    note = tk.Label(root, text="* Max plan users should set Show Cost to false", fg="gray", font=("", 8))
+    note.pack(anchor="w", padx=15, pady=(5, 0))
 
-    new_env = {}
-    for i, (key, _) in enumerate(fields):
-        val = values[i].strip()
-        if val:
-            new_env[key] = val
-        else:
-            new_env[key] = env.get(key, "")
-
-    # If BASE_PROJECT_DIR is empty, open folder chooser
-    if not new_env.get("BASE_PROJECT_DIR"):
-        browse = subprocess.run(
-            ["zenity", "--file-selection", "--directory",
-             "--title=Select Base Project Directory"],
-            capture_output=True, text=True
-        )
-        if browse.returncode == 0 and browse.stdout.strip():
-            new_env["BASE_PROJECT_DIR"] = browse.stdout.strip()
-
-    defaults = {"RATE_LIMIT_PER_MINUTE": "10", "SHOW_COST": "true", "BASE_PROJECT_DIR": BOT_DIR}
-    for key, default in defaults.items():
-        if not new_env.get(key):
-            new_env[key] = default
-
-    if not new_env.get("DISCORD_BOT_TOKEN") or not new_env.get("DISCORD_GUILD_ID") or not new_env.get("ALLOWED_USER_IDS"):
-        subprocess.run(["zenity", "--error", "--text=Bot Token, Guild ID, and User IDs are required."])
-        return
-
-    with open(ENV_PATH, "w") as f:
+    def save():
+        new_env = {}
         for key, _ in fields:
-            if key == "SHOW_COST":
-                f.write("# Show estimated API cost in task results (set false for Max plan users)\n")
-            f.write(f"{key}={new_env.get(key, '')}\n")
+            val = entries[key].get().strip()
+            if val:
+                new_env[key] = val
+            elif key == "DISCORD_BOT_TOKEN":
+                new_env[key] = env.get(key, "")
+            else:
+                new_env[key] = defaults.get(key, "")
+
+        if not new_env.get("DISCORD_BOT_TOKEN") or not new_env.get("DISCORD_GUILD_ID") or not new_env.get("ALLOWED_USER_IDS"):
+            messagebox.showerror("Error", "Bot Token, Guild ID, and User IDs are required.")
+            return
+
+        with open(ENV_PATH, "w") as f:
+            for key, _ in fields:
+                if key == "SHOW_COST":
+                    f.write("# Show estimated API cost in task results (set false for Max plan users)\n")
+                f.write(f"{key}={new_env.get(key, '')}\n")
+
+        root.destroy()
+
+    btn_frame = tk.Frame(root)
+    btn_frame.pack(pady=10)
+    tk.Button(btn_frame, text="Cancel", width=10, command=root.destroy).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="Save", width=10, command=save).pack(side="left", padx=5)
+
+    root.mainloop()
 
 
 def _load_env():
