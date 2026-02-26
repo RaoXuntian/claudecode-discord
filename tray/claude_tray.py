@@ -406,6 +406,9 @@ def toggle_autostart(icon, item):
     if is_autostart_enabled():
         subprocess.run(["systemctl", "--user", "disable", SERVICE_NAME], capture_output=True)
     else:
+        # Regenerate service file to ensure network-wait fix is applied
+        start_script = os.path.join(BOT_DIR, "linux-start.sh")
+        subprocess.run(["/bin/bash", start_script, "--regen-service"], capture_output=True)
         subprocess.run(["systemctl", "--user", "enable", SERVICE_NAME], capture_output=True)
         # Enable lingering so user services start at boot (before login)
         subprocess.run(["loginctl", "enable-linger"], capture_output=True)

@@ -44,18 +44,24 @@ export async function startBot(): Promise<Client> {
     ],
   });
 
-  // Register slash commands
-  const rest = new REST({ version: "10" }).setToken(config.DISCORD_BOT_TOKEN);
-  const commandData = commands.map((c) => c.data.toJSON());
-
-  await rest.put(
-    Routes.applicationGuildCommands(
-      (await rest.get(Routes.currentApplication()) as { id: string }).id,
-      config.DISCORD_GUILD_ID,
-    ),
-    { body: commandData },
-  );
-  console.log(`Registered ${commandData.length} slash commands`);
+  // Register slash commands after successful login (network guaranteed)
+  client.on("ready", async () => {
+    console.log(`Bot logged in as ${client.user?.tag}`);
+    try {
+      const rest = new REST({ version: "10" }).setToken(config.DISCORD_BOT_TOKEN);
+      const commandData = commands.map((c) => c.data.toJSON());
+      await rest.put(
+        Routes.applicationGuildCommands(
+          (await rest.get(Routes.currentApplication()) as { id: string }).id,
+          config.DISCORD_GUILD_ID,
+        ),
+        { body: commandData },
+      );
+      console.log(`Registered ${commandData.length} slash commands`);
+    } catch (error) {
+      console.error("Failed to register slash commands:", error);
+    }
+  });
 
   // Handle interactions (slash commands + buttons)
   client.on("interactionCreate", async (interaction: Interaction) => {
@@ -102,11 +108,28 @@ export async function startBot(): Promise<Client> {
   // Handle messages
   client.on("messageCreate", handleMessage);
 
-  // Login
-  client.on("ready", () => {
-    console.log(`Bot logged in as ${client.user?.tag}`);
-  });
-
-  await client.login(config.DISCORD_BOT_TOKEN);
+  // Login with retry (network may not be ready on boot)
+  await loginWithRetry(client, config.DISCORD_BOT_TOKEN);
   return client;
+}
+
+async function loginWithRetry(client: Client, token: string): Promise<void> {
+  const delays = [5, 10, 15, 30, 30, 30]; // seconds — escalating, then steady 30s
+  let attempt = 0;
+
+  while (true) {
+    try {
+      await client.login(token);
+      if (attempt > 0) {
+        console.log(`Discord login successful after ${attempt} retries`);
+      }
+      return;
+    } catch (error) {
+      attempt++;
+      const delay = delays[Math.min(attempt - 1, delays.length - 1)];
+      console.error(`Discord login attempt ${attempt} failed: ${(error as Error).message}`);
+      console.error(`Retrying in ${delay}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay * 1000));
+    }
+  }
 }

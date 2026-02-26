@@ -48,8 +48,6 @@ if [ "$1" = "--regen-service" ]; then
     cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=Claude Discord Bot
-After=network-online.target
-Wants=network-online.target
 
 [Service]
 Type=simple
@@ -57,11 +55,12 @@ WorkingDirectory=$SCRIPT_DIR
 Environment=HOME=$HOME
 Environment=PATH=$(dirname "$NODE_BIN"):$PATH
 Environment=NODE_PATH=$(dirname "$NODE_BIN")
-ExecStart=$NODE_BIN $SCRIPT_DIR/dist/index.js
 ExecStartPre=/bin/bash -c 'touch $SCRIPT_DIR/.bot.lock'
+ExecStart=$NODE_BIN $SCRIPT_DIR/dist/index.js
 ExecStopPost=/bin/bash -c 'rm -f $SCRIPT_DIR/.bot.lock'
-Restart=always
+Restart=on-failure
 RestartSec=10
+StartLimitIntervalSec=0
 StandardOutput=append:$SCRIPT_DIR/bot.log
 StandardError=append:$SCRIPT_DIR/bot-error.log
 
@@ -141,8 +140,6 @@ fi
 cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=Claude Discord Bot
-After=network-online.target
-Wants=network-online.target
 
 [Service]
 Type=simple
@@ -150,11 +147,12 @@ WorkingDirectory=$SCRIPT_DIR
 Environment=HOME=$HOME
 Environment=PATH=$(dirname "$NODE_BIN"):$PATH
 Environment=NODE_PATH=$(dirname "$NODE_BIN")
-ExecStart=$NODE_BIN $SCRIPT_DIR/dist/index.js
 ExecStartPre=/bin/bash -c 'touch $SCRIPT_DIR/.bot.lock'
+ExecStart=$NODE_BIN $SCRIPT_DIR/dist/index.js
 ExecStopPost=/bin/bash -c 'rm -f $SCRIPT_DIR/.bot.lock'
-Restart=always
+Restart=on-failure
 RestartSec=10
+StartLimitIntervalSec=0
 StandardOutput=append:$SCRIPT_DIR/bot.log
 StandardError=append:$SCRIPT_DIR/bot-error.log
 
@@ -203,7 +201,6 @@ is_env_configured() {
 }
 
 if is_env_configured; then
-    systemctl --user enable "$SERVICE_NAME" 2>/dev/null
     loginctl enable-linger 2>/dev/null
     systemctl --user start "$SERVICE_NAME"
     echo "🟢 Bot started in background"
@@ -215,7 +212,7 @@ fi
 DESKTOP_FILE="$HOME/Desktop/Claude Discord Bot.desktop"
 if [ ! -f "$DESKTOP_FILE" ]; then
     # Try to find an icon, fallback to no icon
-    ICON_PATH="$SCRIPT_DIR/docs/icon.png"
+    ICON_PATH="$SCRIPT_DIR/docs/icon-rounded.png"
     cat > "$DESKTOP_FILE" << DEOF
 [Desktop Entry]
 Type=Application
@@ -231,6 +228,26 @@ DEOF
     # Mark as trusted (GNOME/Ubuntu)
     gio set "$DESKTOP_FILE" metadata::trusted true 2>/dev/null || true
     echo "🖥️ Desktop shortcut created"
+fi
+
+# Register tray app autostart (launches tray on login → tray manages bot lifecycle)
+AUTOSTART_DIR="$HOME/.config/autostart"
+AUTOSTART_FILE="$AUTOSTART_DIR/claude-discord-tray.desktop"
+TRAY_ICON="$SCRIPT_DIR/docs/icon-rounded.png"
+if [ -f "$TRAY_SCRIPT" ]; then
+    mkdir -p "$AUTOSTART_DIR"
+    cat > "$AUTOSTART_FILE" << AEOF
+[Desktop Entry]
+Type=Application
+Name=Claude Discord Bot Tray
+Comment=Claude Discord Bot system tray manager
+Exec=/bin/bash -c 'sleep 3 && python3 $SCRIPT_DIR/tray/claude_tray.py'
+Icon=$TRAY_ICON
+Terminal=false
+X-GNOME-Autostart-enabled=true
+StartupNotify=false
+AEOF
+    echo "🔔 Tray autostart registered"
 fi
 
 echo "   Stop:   ./linux-start.sh --stop"
