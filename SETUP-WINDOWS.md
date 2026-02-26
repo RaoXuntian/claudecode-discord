@@ -144,13 +144,13 @@ npm run build
    - **SCOPES**: Check `bot`, `applications.commands`
 
    <p align="center">
-     <img src="discord-scopes.png" alt="Discord OAuth2 Scopes" width="500">
+     <img src="docs/discord-scopes.png" alt="Discord OAuth2 Scopes" width="500">
    </p>
 
    - **BOT PERMISSIONS**: Check `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands`
 
    <p align="center">
-     <img src="discord-bot-permissions.png" alt="Discord Bot Permissions" width="500">
+     <img src="docs/discord-bot-permissions.png" alt="Discord Bot Permissions" width="500">
    </p>
 
 3. Copy the generated URL and paste in your browser
@@ -181,7 +181,7 @@ npm run build
 Run `win-start.bat` or double-click the **desktop shortcut**. The tray app launches and opens the **Settings** dialog automatically if `.env` is not configured.
 
 <p align="center">
-  <img src="windows-settings.png" alt="Windows Settings Dialog" width="450">
+  <img src="docs/windows-settings.png" alt="Windows Settings Dialog" width="450">
 </p>
 
 Fill in the fields:

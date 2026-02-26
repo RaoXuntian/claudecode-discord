@@ -144,13 +144,13 @@ npm run build
    - **SCOPES**: `bot`, `applications.commands` 체크
 
    <p align="center">
-     <img src="discord-scopes.png" alt="Discord OAuth2 Scopes" width="500">
+     <img src="docs/discord-scopes.png" alt="Discord OAuth2 Scopes" width="500">
    </p>
 
    - **BOT PERMISSIONS**: `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands` 체크
 
    <p align="center">
-     <img src="discord-bot-permissions.png" alt="Discord Bot Permissions" width="500">
+     <img src="docs/discord-bot-permissions.png" alt="Discord Bot Permissions" width="500">
    </p>
 
 3. 생성된 URL을 복사하여 브라우저에 붙여넣기
@@ -181,7 +181,7 @@ npm run build
 `win-start.bat`을 실행하거나 **바탕화면 바로가기**를 더블클릭하세요. 트레이 앱이 실행되고, `.env`가 없으면 자동으로 **설정** 창이 열립니다.
 
 <p align="center">
-  <img src="windows-settings.png" alt="Windows 설정 다이얼로그" width="450">
+  <img src="docs/windows-settings.png" alt="Windows 설정 다이얼로그" width="450">
 </p>
 
 항목을 채워주세요:

@@ -77,8 +77,8 @@ cd claudecode-discord
 
 | Platform | Guide |
 |----------|-------|
-| 🍎 **macOS / Linux** | **[SETUP.md](docs/SETUP.md)** — terminal-based setup, menu bar / tray app |
-| 🪟 **Windows** | **[SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)** — GUI installer, system tray app with control panel, desktop shortcut |
+| 🍎 **macOS / Linux** | **[SETUP.md](SETUP.md)** — terminal-based setup, menu bar / tray app |
+| 🪟 **Windows** | **[SETUP-WINDOWS.md](SETUP-WINDOWS.md)** — GUI installer, system tray app with control panel, desktop shortcut |
 
 Windows users: `install.bat` handles everything automatically — installs dependencies, builds, creates a desktop shortcut, and launches the bot with a system tray GUI.
 
@@ -120,9 +120,9 @@ claudecode-discord/
 │   │   └── guard.ts        # Auth, rate limit
 │   └── utils/
 │       └── config.ts       # Env var validation (zod)
-├── docs/                   # Documentation & screenshots
-│   ├── SETUP.md            # macOS/Linux setup guide
-│   ├── SETUP-WINDOWS.md    # Windows setup guide
+├── SETUP.md                # macOS/Linux setup guide
+├── SETUP-WINDOWS.md        # Windows setup guide
+├── docs/                   # Documentation assets & extras
 │   ├── TESTING.md          # Testing guide
 │   └── *.png               # Screenshots
 ├── package.json
@@ -281,7 +281,7 @@ The bot runs in the background with a **system tray icon**:
 - Auto-starts on logon (via Windows Registry)
 - Desktop shortcut created by `install.bat`
 
-> See **[SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)** for the full Windows guide.
+> See **[SETUP-WINDOWS.md](SETUP-WINDOWS.md)** for the full Windows guide.
 
 ## Development
 

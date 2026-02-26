@@ -76,8 +76,8 @@ cd claudecode-discord
 
 | 플랫폼 | 가이드 |
 |--------|--------|
-| 🍎 **macOS / Linux** | **[SETUP.kr.md](docs/SETUP.kr.md)** — 터미널 기반 설정, 메뉴바 / 트레이 앱 |
-| 🪟 **Windows** | **[SETUP-WINDOWS.kr.md](docs/SETUP-WINDOWS.kr.md)** — GUI 설치, 시스템 트레이 + 컨트롤 패널, 바탕화면 바로가기 |
+| 🍎 **macOS / Linux** | **[SETUP.kr.md](SETUP.kr.md)** — 터미널 기반 설정, 메뉴바 / 트레이 앱 |
+| 🪟 **Windows** | **[SETUP-WINDOWS.kr.md](SETUP-WINDOWS.kr.md)** — GUI 설치, 시스템 트레이 + 컨트롤 패널, 바탕화면 바로가기 |
 
 Windows 사용자: `install.bat` 하나로 모든 것이 자동 처리됩니다 — 의존성 설치, 빌드, 바탕화면 바로가기 생성, 시스템 트레이 GUI와 함께 봇 실행.
 
@@ -119,9 +119,9 @@ claudecode-discord/
 │   │   └── guard.ts        # 인증, rate limit
 │   └── utils/
 │       └── config.ts       # 환경변수 검증 (zod)
-├── docs/                   # 문서 & 스크린샷
-│   ├── SETUP.md / SETUP.kr.md              # macOS/Linux 셋업 가이드
-│   ├── SETUP-WINDOWS.md / SETUP-WINDOWS.kr.md  # Windows 셋업 가이드
+├── SETUP.md / SETUP.kr.md              # macOS/Linux 셋업 가이드
+├── SETUP-WINDOWS.md / SETUP-WINDOWS.kr.md  # Windows 셋업 가이드
+├── docs/                   # 문서 부속자료 & 스크린샷
 │   ├── TESTING.md / TESTING.kr.md          # 테스트 가이드
 │   └── *.png               # 스크린샷
 ├── package.json
@@ -280,7 +280,7 @@ win-start.bat --fg     &:: 포그라운드 모드 (디버깅용)
 - 로그온 시 자동 시작 (Windows 레지스트리)
 - `install.bat`으로 바탕화면 바로가기 자동 생성
 
-> 전체 Windows 가이드는 **[SETUP-WINDOWS.kr.md](docs/SETUP-WINDOWS.kr.md)**를 참고하세요.
+> 전체 Windows 가이드는 **[SETUP-WINDOWS.kr.md](SETUP-WINDOWS.kr.md)**를 참고하세요.
 
 ## 개발 명령어
 
