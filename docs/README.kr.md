@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="icon.png" alt="Claude Code Discord Controller" width="120">
+</p>
+
 # Claude Code Discord Controller
 
 Discord에서 여러 프로젝트의 Claude Code 세션을 원격 관리하는 봇입니다. (데스크톱/웹/모바일)

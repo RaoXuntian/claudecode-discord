@@ -690,6 +690,10 @@ class ClaudeBotTray : Form
             MinimizeBox = false,
         };
 
+        string icoPath = Path.Combine(botDir, "docs", "icon.ico");
+        if (File.Exists(icoPath))
+            controlPanel.Icon = new Icon(icoPath);
+
         RebuildControlPanel();
         controlPanel.ShowDialog();
         controlPanel = null;

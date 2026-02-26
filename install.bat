@@ -152,6 +152,7 @@ echo Set oLink = oWS.CreateShortcut(sLinkFile) >> "%SHORTCUT_VBS%"
 echo oLink.TargetPath = "%SCRIPT_DIR%\win-start.bat" >> "%SHORTCUT_VBS%"
 echo oLink.WorkingDirectory = "%SCRIPT_DIR%" >> "%SHORTCUT_VBS%"
 echo oLink.Description = "Claude Discord Bot" >> "%SHORTCUT_VBS%"
+echo oLink.IconLocation = "%SCRIPT_DIR%\docs\icon.ico, 0" >> "%SHORTCUT_VBS%"
 echo oLink.WindowStyle = 7 >> "%SHORTCUT_VBS%"
 echo oLink.Save >> "%SHORTCUT_VBS%"
 cscript //nologo "%SHORTCUT_VBS%" >nul 2>&1

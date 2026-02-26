@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/icon.png" alt="Claude Code Discord Controller" width="120">
+</p>
+
 # Claude Code Discord Controller
 
 A Discord bot that manages multiple Claude Code sessions remotely via Discord (desktop, web, and mobile).
