@@ -870,6 +870,24 @@ class ClaudeBotTray : Form
         controlPanel.Controls.Add(quitBtn);
         y += 50;
 
+        // Separator line
+        var sep3 = new Label() { Left = 25, Top = y, Width = btnWidth, Height = 1, BackColor = Color.FromArgb(220, 220, 220) };
+        controlPanel.Controls.Add(sep3);
+        y += 10;
+
+        // GitHub link
+        var ghLink = new LinkLabel()
+        {
+            Text = "GitHub: chadingTV/claudecode-discord",
+            Left = 25, Top = y, Width = btnWidth, Height = 20,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font(FontFamily.GenericSansSerif, 8.5f),
+            LinkColor = Color.FromArgb(66, 133, 244)
+        };
+        ghLink.LinkClicked += (s, ev) => { Process.Start("https://github.com/chadingTV/claudecode-discord"); };
+        controlPanel.Controls.Add(ghLink);
+        y += 30;
+
         controlPanel.Height = y + 20;
 
         // Restore position if it was already visible
