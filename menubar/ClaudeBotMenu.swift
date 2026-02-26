@@ -798,21 +798,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         accessory.addSubview(showCostLabel)
 
         y -= fieldHeight
+        let radioContainer = NSView(frame: NSRect(x: 0, y: y, width: width, height: fieldHeight))
         let showCostTrue = NSButton(radioButtonWithTitle: L("true (show cost)", "true (비용 표시)"), target: nil, action: nil)
-        showCostTrue.frame = NSRect(x: 0, y: y, width: width / 2, height: fieldHeight)
+        showCostTrue.frame = NSRect(x: 0, y: 0, width: width / 2, height: fieldHeight)
         showCostTrue.font = NSFont.systemFont(ofSize: 12)
-        accessory.addSubview(showCostTrue)
+        radioContainer.addSubview(showCostTrue)
 
         let showCostFalse = NSButton(radioButtonWithTitle: L("false (Max plan)", "false (Max 요금제)"), target: nil, action: nil)
-        showCostFalse.frame = NSRect(x: width / 2, y: y, width: width / 2, height: fieldHeight)
+        showCostFalse.frame = NSRect(x: width / 2, y: 0, width: width / 2, height: fieldHeight)
         showCostFalse.font = NSFont.systemFont(ofSize: 12)
-        accessory.addSubview(showCostFalse)
+        radioContainer.addSubview(showCostFalse)
+        accessory.addSubview(radioContainer)
 
         let currentShowCost = env["SHOW_COST"] ?? "true"
         if currentShowCost.lowercased() == "false" {
             showCostFalse.state = .on
+            showCostTrue.state = .off
         } else {
             showCostTrue.state = .on
+            showCostFalse.state = .off
         }
         y -= spacing
 
@@ -945,10 +949,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openLog() {
         let logPath = "\(botDir)/bot.log"
+        let errLogPath = "\(botDir)/bot-error.log"
         if !FileManager.default.fileExists(atPath: logPath) {
             FileManager.default.createFile(atPath: logPath, contents: nil)
         }
-        NSWorkspace.shared.open(URL(fileURLWithPath: logPath))
+        let cmd = "echo \\\"=== bot-error.log ===\\\" && tail -20 \\\"" + errLogPath + "\\\" 2>/dev/null; echo \\\"\\\"; echo \\\"=== bot.log (live) ===\\\" && tail -100f \\\"" + logPath + "\\\""
+        runShell("osascript -e 'tell application \"Terminal\" to do script \"\(cmd)\"'")
     }
 
     @objc private func openFolder() {
