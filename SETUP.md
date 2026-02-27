@@ -16,7 +16,8 @@ cd claudecode-discord
 ./install.sh
 ```
 
-Once the script completes, edit the `.env` file and run `npm run dev`.
+The script automatically installs dependencies and builds the project. On **macOS**, it also installs Xcode Command Line Tools (needed for the Swift menu bar app) and accepts the Xcode license — you may be prompted for your password.
+
 If auto install fails, follow the manual installation steps below.
 
 ---

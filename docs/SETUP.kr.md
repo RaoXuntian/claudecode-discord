@@ -16,7 +16,8 @@ cd claudecode-discord
 ./install.sh
 ```
 
-스크립트가 완료되면 `.env` 파일을 편집한 후 `npm run dev`로 실행하면 됩니다.
+스크립트가 의존성 설치와 빌드를 자동으로 처리합니다. **macOS**에서는 Xcode Command Line Tools 설치(Swift 메뉴바 앱에 필요)와 Xcode 라이센스 동의도 자동 진행됩니다 — 비밀번호 입력이 요청될 수 있습니다.
+
 자동 설치가 안 되는 경우 아래 수동 설치 과정을 참고하세요.
 
 ---
