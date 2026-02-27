@@ -150,6 +150,8 @@ claudecode-discord/
 The `/register` command shows an **autocomplete dropdown** listing subdirectories under `BASE_PROJECT_DIR` — just start typing to filter and select.
 The first option `.` registers the base directory itself. You can also type a custom path; absolute paths work too.
 
+> **Why per-directory?** Claude Code manages sessions per project directory — each directory has its own conversation history, `CLAUDE.md` context, and tool permissions. By mapping one Discord channel to one directory, each channel gets an independent Claude workspace.
+
 Send a **regular message** in a registered channel and Claude will respond.
 Attach images, documents, or code files and Claude can read and analyze them.
 
