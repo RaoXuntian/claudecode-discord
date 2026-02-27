@@ -564,15 +564,17 @@ class ClaudeBotTray : Form
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false,
             MinimizeBox = false,
+            BackColor = BgDark,
+            ForeColor = FgWhite,
         };
 
         // Setup guide link
-        var linkLabel = new LinkLabel() { Text = L("Open Setup Guide", "설정 가이드 열기"), Left = 15, Top = 10, Width = 450, Height = 20 };
+        var linkLabel = new LinkLabel() { Text = L("Open Setup Guide", "설정 가이드 열기"), Left = 15, Top = 10, Width = 450, Height = 20, LinkColor = LinkBlue, BackColor = Color.Transparent };
         linkLabel.LinkClicked += (s, ev) => { Process.Start("https://github.com/chadingTV/claudecode-discord/blob/main/SETUP.md"); };
         form.Controls.Add(linkLabel);
 
         // Issues link
-        var issueLabel = new LinkLabel() { Text = L("Bug Report / Feature Request (GitHub Issues)", "버그 신고 / 기능 요청 (GitHub Issues)"), Left = 15, Top = 32, Width = 450, Height = 20 };
+        var issueLabel = new LinkLabel() { Text = L("Bug Report / Feature Request (GitHub Issues)", "버그 신고 / 기능 요청 (GitHub Issues)"), Left = 15, Top = 32, Width = 450, Height = 20, LinkColor = LinkBlue, BackColor = Color.Transparent };
         issueLabel.LinkClicked += (s, ev) => { Process.Start("https://github.com/chadingTV/claudecode-discord/issues"); };
         form.Controls.Add(issueLabel);
 
@@ -607,13 +609,13 @@ class ClaudeBotTray : Form
 
         for (int i = 0; i < fields.Length; i++)
         {
-            var label = new Label() { Text = fields[i][1], Left = 15, Top = y, Width = 450, Font = new Font(FontFamily.GenericSansSerif, 9, FontStyle.Bold) };
+            var label = new Label() { Text = fields[i][1], Left = 15, Top = y, Width = 450, Font = new Font(FontFamily.GenericSansSerif, 9, FontStyle.Bold), ForeColor = FgWhite, BackColor = Color.Transparent };
             form.Controls.Add(label);
             y += 20;
 
             if (fields[i][0] == "BASE_PROJECT_DIR")
             {
-                var tb = new TextBox() { Left = 15, Top = y, Width = 360 };
+                var tb = new TextBox() { Left = 15, Top = y, Width = 360, BackColor = BgPanel, ForeColor = FgWhite, BorderStyle = BorderStyle.FixedSingle };
                 string val = "";
                 env.TryGetValue(fields[i][0], out val);
                 if (val != null && exampleValues.Contains(val)) val = "";
@@ -629,7 +631,8 @@ class ClaudeBotTray : Form
                 form.Controls.Add(tb);
                 textBoxes[i] = tb;
 
-                var browseBtn = new Button() { Text = L("Browse...", "찾아보기..."), Left = 380, Top = y - 1, Width = 85 };
+                var browseBtn = new Button() { Text = L("Browse...", "찾아보기..."), Left = 380, Top = y - 1, Width = 85, FlatStyle = FlatStyle.Flat, BackColor = BgButton, ForeColor = FgWhite };
+                browseBtn.FlatAppearance.BorderSize = 0;
                 int idx = i;
                 browseBtn.Click += (s, ev) =>
                 {
@@ -647,7 +650,7 @@ class ClaudeBotTray : Form
             }
             else
             {
-                var tb = new TextBox() { Left = 15, Top = y, Width = 450 };
+                var tb = new TextBox() { Left = 15, Top = y, Width = 450, BackColor = BgPanel, ForeColor = FgWhite, BorderStyle = BorderStyle.FixedSingle };
                 string val = "";
                 env.TryGetValue(fields[i][0], out val);
                 if (val != null && exampleValues.Contains(val)) val = "";
@@ -682,12 +685,12 @@ class ClaudeBotTray : Form
         }
 
         var note = new Label() { Text = L("* Max plan users should set Show Cost to false",
-                                           "* Max 요금제 사용자는 Show Cost를 false로 설정하세요"), Left = 15, Top = y, Width = 450, ForeColor = Color.Gray };
+                                           "* Max 요금제 사용자는 Show Cost를 false로 설정하세요"), Left = 15, Top = y, Width = 450, ForeColor = FgDimGray, BackColor = Color.Transparent };
         form.Controls.Add(note);
         y += 25;
 
-        var saveBtn = new Button() { Text = L("Save", "저장"), Left = 300, Top = y, Width = 80 };
-        var cancelBtn = new Button() { Text = L("Cancel", "취소"), Left = 385, Top = y, Width = 80 };
+        var saveBtn = MakeDarkButton(L("Save", "저장"), 300, y, 80, 32, AccentBlue, Color.White);
+        var cancelBtn = MakeDarkButton(L("Cancel", "취소"), 385, y, 80, 32, BgButton, FgWhite);
 
         saveBtn.Click += (s, ev) =>
         {
