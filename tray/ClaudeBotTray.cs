@@ -63,13 +63,13 @@ class ClaudeBotTray : Form
 
         refreshTimer = new System.Windows.Forms.Timer();
         refreshTimer.Interval = 5000;
-        refreshTimer.Tick += (s, e) => { UpdateStatus(); BuildMenu(); };
+        refreshTimer.Tick += (s, e) => { try { UpdateStatus(); BuildMenu(); } catch { } };
         refreshTimer.Start();
 
         // Check for updates every 5 minutes
         updateCheckTimer = new System.Windows.Forms.Timer();
         updateCheckTimer.Interval = 300000;
-        updateCheckTimer.Tick += (s, e) => { CheckForUpdates(); BuildMenu(); };
+        updateCheckTimer.Tick += (s, e) => { try { CheckForUpdates(); BuildMenu(); } catch { } };
         updateCheckTimer.Start();
 
         // Initial update check
@@ -278,6 +278,19 @@ class ClaudeBotTray : Form
         return true;
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr handle);
+
+    private void SetTrayIcon(Color color)
+    {
+        var bmp = CreateIcon(color);
+        IntPtr hIcon = bmp.GetHicon();
+        var oldIcon = trayIcon.Icon;
+        trayIcon.Icon = Icon.FromHandle(hIcon);
+        if (oldIcon != null) { try { DestroyIcon(oldIcon.Handle); oldIcon.Dispose(); } catch { } }
+        bmp.Dispose();
+    }
+
     private void UpdateStatus()
     {
         bool running = IsRunning();
@@ -285,17 +298,17 @@ class ClaudeBotTray : Form
 
         if (!hasEnv)
         {
-            trayIcon.Icon = Icon.FromHandle(CreateIcon(Color.Orange).GetHicon());
+            SetTrayIcon(Color.Orange);
             trayIcon.Text = L("Claude Discord Bot: Setup Required", "Claude Discord Bot: 설정 필요");
         }
         else if (running)
         {
-            trayIcon.Icon = Icon.FromHandle(CreateIcon(Color.LimeGreen).GetHicon());
+            SetTrayIcon(Color.LimeGreen);
             trayIcon.Text = L("Claude Discord Bot: Running", "Claude Discord Bot: 실행 중");
         }
         else
         {
-            trayIcon.Icon = Icon.FromHandle(CreateIcon(Color.Red).GetHicon());
+            SetTrayIcon(Color.Red);
             trayIcon.Text = L("Claude Discord Bot: Stopped", "Claude Discord Bot: 중지됨");
         }
     }
@@ -305,6 +318,7 @@ class ClaudeBotTray : Form
         bool running = IsRunning();
         bool hasEnv = IsEnvConfigured();
 
+        var oldMenu = trayIcon.ContextMenuStrip;
         var menu = new ContextMenuStrip();
 
         if (!hasEnv)
@@ -383,6 +397,7 @@ class ClaudeBotTray : Form
         menu.Items.Add(L("Quit", "종료"), null, QuitAll);
 
         trayIcon.ContextMenuStrip = menu;
+        if (oldMenu != null) { try { oldMenu.Dispose(); } catch { } }
     }
 
     private void StartBot(object sender, EventArgs e)
