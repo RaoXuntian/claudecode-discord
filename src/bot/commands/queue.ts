@@ -56,14 +56,27 @@ export async function execute(
       })
       .join("\n\n");
 
+    // Each message gets a ❌ button, plus a Clear All button
+    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    const itemButtons: ButtonBuilder[] = queue.map((_, idx) =>
+      new ButtonBuilder()
+        .setCustomId(`queue-remove-${channelId}:${idx}`)
+        .setLabel(`❌ ${idx + 1}`)
+        .setStyle(ButtonStyle.Secondary)
+    );
+
     const clearButton = new ButtonBuilder()
       .setCustomId(`queue-clear-${channelId}`)
       .setLabel(L("Clear All", "모두 취소"))
       .setStyle(ButtonStyle.Danger);
 
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      clearButton
-    );
+    // Discord allows max 5 buttons per row, max 5 rows
+    // Fit item buttons (up to 4 per row to leave room) + clear button
+    const allButtons = [...itemButtons.slice(0, 19), clearButton]; // max 20 buttons (4 rows * 5)
+    for (let i = 0; i < allButtons.length; i += 5) {
+      const chunk = allButtons.slice(i, i + 5);
+      rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...chunk));
+    }
 
     await interaction.editReply({
       embeds: [
@@ -76,7 +89,7 @@ export async function execute(
           color: 0x5865f2,
         },
       ],
-      components: [row],
+      components: rows,
     });
   } else if (subcommand === "clear") {
     const cleared = sessionManager.clearQueue(channelId);

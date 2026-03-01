@@ -140,7 +140,7 @@ claudecode-discord/
 | `/auto-approve on\|off` | 자동 승인 토글 | `/auto-approve on` |
 | `/sessions` | 기존 세션 목록 조회, 재개 또는 삭제 | |
 | `/last` | 현재 세션의 마지막 Claude 응답 전체 확인 | |
-| `/queue list` | 대기 중인 메시지 목록 확인 | |
+| `/queue list` | 대기 중인 메시지 목록 확인 (개별 또는 전체 취소) | |
 | `/queue clear` | 대기 중인 메시지 모두 취소 | |
 | `/clear-sessions` | 해당 프로젝트의 모든 세션 일괄 삭제 | |
 
@@ -156,7 +156,7 @@ claudecode-discord/
 
 - 작업 진행 중 **⏹️ Stop** 버튼으로 즉시 중지 가능
 - 이전 작업 진행 중 새 메시지를 보내면 **메시지 큐**에 추가 가능 — 현재 작업 완료 후 자동 처리
-- `/queue list`로 대기 메시지 확인, `/queue clear`로 모두 취소
+- `/queue list`로 대기 메시지 확인 — 개별 취소(❌) 또는 전체 취소 가능
 - `/stop` 슬래시 명령어로도 중지 가능
 
 <details>

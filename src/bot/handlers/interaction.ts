@@ -171,6 +171,84 @@ export async function handleButtonInteraction(
     return;
   }
 
+  // Handle queue remove individual item button
+  if (action === "queue-remove") {
+    // requestId format: "channelId:index"
+    const lastColon = requestId.lastIndexOf(":");
+    const channelId = requestId.slice(0, lastColon);
+    const index = parseInt(requestId.slice(lastColon + 1), 10);
+    const removed = sessionManager.removeFromQueue(channelId, index);
+
+    if (!removed) {
+      await interaction.update({
+        content: L("This item is no longer in the queue.", "이 항목은 이미 큐에 없습니다."),
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    const preview = removed.length > 60 ? removed.slice(0, 60) + "…" : removed;
+
+    // Show updated queue
+    const queue = sessionManager.getQueue(channelId);
+    if (queue.length === 0) {
+      await interaction.update({
+        embeds: [
+          {
+            title: L("Message Removed", "메시지 취소됨"),
+            description: L(`Removed: ${preview}\n\nQueue is now empty.`, `취소됨: ${preview}\n\n큐가 비었습니다.`),
+            color: 0xff6600,
+          },
+        ],
+        components: [],
+      });
+      return;
+    }
+
+    // Rebuild list and buttons with updated queue
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import("discord.js");
+    const list = queue
+      .map((item: { prompt: string }, idx: number) => {
+        const p = item.prompt.length > 100 ? item.prompt.slice(0, 100) + "…" : item.prompt;
+        return `**${idx + 1}.** ${p}`;
+      })
+      .join("\n\n");
+
+    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    const itemButtons = queue.map((_: unknown, idx: number) =>
+      new ButtonBuilder()
+        .setCustomId(`queue-remove-${channelId}:${idx}`)
+        .setLabel(`❌ ${idx + 1}`)
+        .setStyle(ButtonStyle.Secondary)
+    );
+    const clearButton = new ButtonBuilder()
+      .setCustomId(`queue-clear-${channelId}`)
+      .setLabel(L("Clear All", "모두 취소"))
+      .setStyle(ButtonStyle.Danger);
+
+    const allButtons = [...itemButtons.slice(0, 19), clearButton];
+    for (let i = 0; i < allButtons.length; i += 5) {
+      const chunk = allButtons.slice(i, i + 5);
+      rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...chunk));
+    }
+
+    await interaction.update({
+      embeds: [
+        {
+          title: L(
+            `📋 Message Queue (${queue.length})`,
+            `📋 메시지 큐 (${queue.length}개)`
+          ),
+          description: `~~${preview}~~ ${L("removed", "취소됨")}\n\n${list}`,
+          color: 0x5865f2,
+        },
+      ],
+      components: rows,
+    });
+    return;
+  }
+
   // Handle session delete button
   if (action === "session-delete") {
     const sessionId = requestId;

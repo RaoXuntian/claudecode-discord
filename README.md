@@ -141,7 +141,7 @@ claudecode-discord/
 | `/auto-approve on\|off` | Toggle auto-approval | `/auto-approve on` |
 | `/sessions` | List sessions to resume or delete | |
 | `/last` | Show the last Claude response from current session | |
-| `/queue list` | View queued messages | |
+| `/queue list` | View queued messages (cancel individually or all) | |
 | `/queue clear` | Cancel all queued messages | |
 | `/clear-sessions` | Delete all session files for the project | |
 
@@ -157,7 +157,7 @@ Attach images, documents, or code files and Claude can read and analyze them.
 
 - **⏹️ Stop** button on progress messages for instant cancellation
 - Sending a new message while busy offers **message queue** — auto-processes after current task completes
-- `/queue list` to view queued messages, `/queue clear` to cancel all
+- `/queue list` to view queued messages — cancel individually (❌) or all at once
 - `/stop` slash command also available
 
 <details>

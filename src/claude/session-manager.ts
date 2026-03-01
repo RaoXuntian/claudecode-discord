@@ -539,6 +539,17 @@ class SessionManager {
     this.pendingQueuePrompts.delete(channelId);
     return count;
   }
+
+  removeFromQueue(channelId: string, index: number): string | null {
+    const queue = this.messageQueue.get(channelId);
+    if (!queue || index < 0 || index >= queue.length) return null;
+    const [removed] = queue.splice(index, 1);
+    if (queue.length === 0) {
+      this.messageQueue.delete(channelId);
+      this.pendingQueuePrompts.delete(channelId);
+    }
+    return removed.prompt;
+  }
 }
 
 export const sessionManager = new SessionManager();
