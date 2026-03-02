@@ -134,24 +134,34 @@ class ClaudeBotTray : Form
 
     private bool IsRunning()
     {
-        // Check actual process instead of unreliable lock file
+        // 1. Check ClaudeBot.exe process
         try
         {
             if (Process.GetProcessesByName("ClaudeBot").Length > 0) return true;
         }
         catch { }
-        try
+        // 2. Check lock file (written by StartBot cmd chain)
+        if (File.Exists(Path.Combine(botDir, ".bot.lock")))
         {
-            var proc = new Process();
-            proc.StartInfo.FileName = "powershell";
-            proc.StartInfo.Arguments = "-NoProfile -Command \"if (Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like '*dist/index.js*' }) { exit 0 } else { exit 1 }\"";
-            proc.StartInfo.UseShellExecute = false;
-            proc.StartInfo.CreateNoWindow = true;
-            proc.Start();
-            proc.WaitForExit(5000);
-            if (proc.ExitCode == 0) return true;
+            // Verify lock file is not stale (older than 2 minutes without a matching process)
+            try
+            {
+                var lockAge = DateTime.Now - File.GetLastWriteTime(Path.Combine(botDir, ".bot.lock"));
+                if (lockAge.TotalMinutes < 2) return true;
+                // Stale lock — check if any node/ClaudeBot process is actually running
+                var proc = new Process();
+                proc.StartInfo.FileName = "powershell";
+                proc.StartInfo.Arguments = "-NoProfile -Command \"if (Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like '*dist/index.js*' }) { exit 0 } else { exit 1 }\"";
+                proc.StartInfo.UseShellExecute = false;
+                proc.StartInfo.CreateNoWindow = true;
+                proc.Start();
+                proc.WaitForExit(5000);
+                if (proc.ExitCode == 0) return true;
+                // Stale lock file with no process — clean up
+                try { File.Delete(Path.Combine(botDir, ".bot.lock")); } catch { }
+            }
+            catch { return true; } // If we can't check, assume running
         }
-        catch { }
         return false;
     }
 
