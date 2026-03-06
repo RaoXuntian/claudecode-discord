@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { isAllowedUser } from "../../security/guard.js";
 import { sessionManager } from "../../claude/session-manager.js";
-import { upsertSession, getProject } from "../../db/database.js";
+import { upsertSession, getProject, getSession } from "../../db/database.js";
 import { findSessionDir, getLastAssistantMessage } from "../commands/sessions.js";
 import { L } from "../../utils/i18n.js";
 
@@ -269,11 +269,22 @@ export async function handleButtonInteraction(
       const filePath = path.join(sessionDir, `${sessionId}.jsonl`);
       try {
         fs.unlinkSync(filePath);
+
+        // If deleting the currently active session, reset DB so next message creates fresh session
+        const dbSession = getSession(channelId);
+        if (dbSession?.session_id === sessionId) {
+          const { randomUUID } = await import("node:crypto");
+          upsertSession(randomUUID(), channelId, null, "idle");
+        }
+
         await interaction.update({
           embeds: [
             {
               title: L("Session Deleted", "세션 삭제됨"),
-              description: L(`Session \`${sessionId.slice(0, 8)}...\` has been deleted.`, `세션 \`${sessionId.slice(0, 8)}...\`이(가) 삭제되었습니다.`),
+              description: L(
+                `Session \`${sessionId.slice(0, 8)}...\` has been deleted.\nYour next message will start a new conversation.`,
+                `세션 \`${sessionId.slice(0, 8)}...\`이(가) 삭제되었습니다.\n다음 메시지부터 새로운 대화가 시작됩니다.`
+              ),
               color: 0xff6b6b,
             },
           ],

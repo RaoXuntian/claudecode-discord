@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import readline from "node:readline";
-import { getProject, getSession } from "../../db/database.js";
+import { getProject, getSession, upsertSession } from "../../db/database.js";
 import { L } from "../../utils/i18n.js";
 
 interface SessionInfo {
@@ -249,8 +249,19 @@ export async function execute(
   const sessions = await listSessions(project.project_path);
 
   if (sessions.length === 0) {
+    const { randomUUID } = await import("node:crypto");
+    upsertSession(randomUUID(), channelId, null, "idle");
     await interaction.editReply({
-      content: L(`No existing sessions found for \`${project.project_path}\``, `\`${project.project_path}\`에 대한 기존 세션을 찾을 수 없습니다`),
+      embeds: [
+        {
+          title: L("✨ New Session", "✨ 새 세션"),
+          description: L(
+            `No existing sessions found for \`${project.project_path}\`.\nA new session is ready — your next message will start a new conversation.`,
+            `\`${project.project_path}\`에 대한 기존 세션이 없습니다.\n새 세션이 준비되었습니다 — 다음 메시지부터 새로운 대화가 시작됩니다.`
+          ),
+          color: 0x00ff00,
+        },
+      ],
     });
     return;
   }
