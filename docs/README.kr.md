@@ -235,7 +235,7 @@ claudecode-discord/
 ### Linux — 시스템 트레이 + 컨트롤 패널
 
 <p align="center">
-  <img src="linux-tray.png" alt="Linux 시스템 트레이" width="350">
+  <img src="linux-tray-kr.png" alt="Linux 시스템 트레이" width="350">
 </p>
 
 ```bash
