@@ -37,13 +37,20 @@ function formatResetTime(isoStr: string): string {
   return L(`${diffM}m left`, `${diffM}분 후 초기화`);
 }
 
-function getAccessToken(): string | null {
+interface Credentials {
+  claudeAiOauth?: {
+    accessToken?: string;
+    refreshToken?: string;
+    expiresAt?: number;
+  };
+}
+
+function readCredentials(): { cred: Credentials; source: "file" | "keychain" } | null {
   // 1. Try credentials file (Windows/Linux)
   try {
     const credPath = join(homedir(), ".claude", ".credentials.json");
-    const cred = JSON.parse(readFileSync(credPath, "utf-8"));
-    const token = cred?.claudeAiOauth?.accessToken ?? cred?.accessToken;
-    if (token) return token;
+    const cred = JSON.parse(readFileSync(credPath, "utf-8")) as Credentials;
+    if (cred?.claudeAiOauth?.accessToken) return { cred, source: "file" };
   } catch { /* not found */ }
 
   // 2. Try macOS keychain
@@ -53,26 +60,101 @@ function getAccessToken(): string | null {
         encoding: "utf-8",
         timeout: 5000,
       }).trim();
-      const cred = JSON.parse(raw);
-      return cred?.claudeAiOauth?.accessToken ?? cred?.accessToken ?? null;
+      const cred = JSON.parse(raw) as Credentials;
+      if (cred?.claudeAiOauth?.accessToken) return { cred, source: "keychain" };
     } catch { /* keychain not available */ }
   }
 
   return null;
 }
 
-async function fetchUsageLive(): Promise<UsageResponse | null> {
-  const token = getAccessToken();
-  if (!token) return null;
+function isTokenExpired(cred: Credentials): boolean {
+  const expiresAt = cred?.claudeAiOauth?.expiresAt ?? 0;
+  return Date.now() >= expiresAt - 300000;
+}
+
+async function refreshOAuthToken(cred: Credentials, source: "file" | "keychain"): Promise<string | null> {
+  const refreshToken = cred?.claudeAiOauth?.refreshToken;
+  if (!refreshToken) return null;
 
   try {
-    const res = await fetch("https://api.anthropic.com/api/oauth/usage", {
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+      scope: "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload",
+    });
+
+    const res = await fetch("https://platform.claude.com/v1/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json() as Record<string, unknown>;
+    const newAccess = data.access_token as string;
+    if (!newAccess) return null;
+
+    const newRefresh = (data.refresh_token as string) ?? refreshToken;
+    const expiresIn = (data.expires_in as number) ?? 3600;
+    const newExpiresAt = Date.now() + expiresIn * 1000;
+
+    // Update credentials file (not keychain — avoid popup on macOS)
+    if (source === "file") {
+      try {
+        const credPath = join(homedir(), ".claude", ".credentials.json");
+        cred.claudeAiOauth!.accessToken = newAccess;
+        cred.claudeAiOauth!.refreshToken = newRefresh;
+        cred.claudeAiOauth!.expiresAt = newExpiresAt;
+        writeFileSync(credPath, JSON.stringify(cred));
+      } catch { /* ignore */ }
+    }
+
+    return newAccess;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchUsageLive(): Promise<UsageResponse | null> {
+  const result = readCredentials();
+  if (!result) return null;
+
+  let { cred } = result;
+  let token = cred?.claudeAiOauth?.accessToken;
+  if (!token) return null;
+
+  // Auto-refresh if expired
+  if (isTokenExpired(cred)) {
+    const newToken = await refreshOAuthToken(cred, result.source);
+    if (newToken) token = newToken;
+  }
+
+  try {
+    let res = await fetch("https://api.anthropic.com/api/oauth/usage", {
       headers: {
         Authorization: `Bearer ${token}`,
         "anthropic-beta": "oauth-2025-04-20",
       },
       signal: AbortSignal.timeout(10000),
     });
+
+    // 401: retry after refresh
+    if (res.status === 401) {
+      const newToken = await refreshOAuthToken(cred, result.source);
+      if (newToken) {
+        res = await fetch("https://api.anthropic.com/api/oauth/usage", {
+          headers: {
+            Authorization: `Bearer ${newToken}`,
+            "anthropic-beta": "oauth-2025-04-20",
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+      }
+    }
+
     if (!res.ok) return null;
     const data = (await res.json()) as UsageResponse;
 

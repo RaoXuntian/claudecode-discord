@@ -539,14 +539,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         fetchUsage()
     }
 
-    private func getAccessToken() -> String? {
+    private func readCredentialsJSON() -> (String, [String: Any])? {
         // Try credentials file first (cross-platform)
         let credPath = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/.credentials.json")
         if let data = try? Data(contentsOf: URL(fileURLWithPath: credPath)),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let oauth = json["claudeAiOauth"] as? [String: Any],
-           let token = oauth["accessToken"] as? String, !token.isEmpty {
-            return token
+           let raw = String(data: data, encoding: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return (raw, json)
         }
 
         // macOS: read from keychain via security command
@@ -565,10 +564,78 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !raw.isEmpty,
               let data = raw.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let oauth = json["claudeAiOauth"] as? [String: Any],
-              let token = oauth["accessToken"] as? String, !token.isEmpty else { return nil }
-        return token
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return (raw, json)
+    }
+
+    // In-memory cache for refreshed token (avoid keychain write)
+    private var cachedAccessToken: String?
+    private var cachedTokenExpiresAt: Int64 = 0
+
+    private func isTokenExpired(_ json: [String: Any]) -> Bool {
+        guard let oauth = json["claudeAiOauth"] as? [String: Any],
+              let expiresAt = oauth["expiresAt"] as? Int64 else { return false }
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        return nowMs >= (expiresAt - 300000) // 5 min buffer
+    }
+
+    private func refreshOAuthToken(_ credJson: String, _ json: [String: Any]) -> String? {
+        guard let oauth = json["claudeAiOauth"] as? [String: Any],
+              let refreshToken = oauth["refreshToken"] as? String else { return nil }
+
+        let postData = "grant_type=refresh_token"
+            + "&refresh_token=\(refreshToken.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? refreshToken)"
+            + "&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+            + "&scope=user:profile%20user:inference%20user:sessions:claude_code%20user:mcp_servers%20user:file_upload"
+
+        guard let url = URL(string: "https://platform.claude.com/v1/oauth/token") else { return nil }
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = postData.data(using: .utf8)
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var newAccessToken: String?
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            defer { semaphore.signal() }
+            guard error == nil,
+                  let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
+                  let data = data,
+                  let tokenJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let newAccess = tokenJson["access_token"] as? String else { return }
+
+            let expiresIn = tokenJson["expires_in"] as? Int64 ?? 3600
+            let newExpiresAt = Int64(Date().timeIntervalSince1970 * 1000) + expiresIn * 1000
+
+            // Store in memory only (no keychain write)
+            self?.cachedAccessToken = newAccess
+            self?.cachedTokenExpiresAt = newExpiresAt
+            newAccessToken = newAccess
+        }.resume()
+
+        _ = semaphore.wait(timeout: .now() + 20)
+        return newAccessToken
+    }
+
+    private func getAccessToken() -> String? {
+        // Use cached token if still valid
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        if let cached = cachedAccessToken, cachedTokenExpiresAt > nowMs + 300000 {
+            return cached
+        }
+
+        guard let (credJson, json) = readCredentialsJSON() else { return nil }
+        guard let oauth = json["claudeAiOauth"] as? [String: Any] else { return nil }
+
+        // Auto-refresh if expired
+        if isTokenExpired(json) {
+            if let token = refreshOAuthToken(credJson, json) {
+                return token
+            }
+        }
+
+        return oauth["accessToken"] as? String
     }
 
     private func fetchUsageViaAPI() -> [String: Any]? {
@@ -581,9 +648,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let semaphore = DispatchSemaphore(value: 0)
         var result: [String: Any]?
+        var statusCode = 0
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             defer { semaphore.signal() }
+            if let httpRes = response as? HTTPURLResponse { statusCode = httpRes.statusCode }
             guard error == nil,
                   let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
                   let data = data,
@@ -592,6 +661,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }.resume()
 
         _ = semaphore.wait(timeout: .now() + 12)
+
+        // 401: retry after token refresh
+        if result == nil && statusCode == 401 {
+            if let (credJson, json) = readCredentialsJSON(),
+               let newToken = refreshOAuthToken(credJson, json) {
+                var retryReq = URLRequest(url: url, timeoutInterval: 10)
+                retryReq.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                retryReq.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+                let sem2 = DispatchSemaphore(value: 0)
+                URLSession.shared.dataTask(with: retryReq) { data, response, error in
+                    defer { sem2.signal() }
+                    guard error == nil,
+                          let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
+                          let data = data,
+                          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+                    result = json
+                }.resume()
+                _ = sem2.wait(timeout: .now() + 12)
+            }
+        }
+
         return result
     }
 

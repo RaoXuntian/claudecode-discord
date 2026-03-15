@@ -586,6 +586,45 @@ StartupNotify=false
     icon.menu = create_menu()
 
 
+def _refresh_oauth_token(cred_path, cred):
+    """Refresh expired OAuth token and update credentials file."""
+    try:
+        refresh_token = cred.get("claudeAiOauth", {}).get("refreshToken", "")
+        if not refresh_token:
+            return None
+        post_data = urllib.parse.urlencode({
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+            "scope": "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload",
+        }).encode()
+        req = urllib.request.Request("https://platform.claude.com/v1/oauth/token",
+                                     data=post_data, method="POST")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            token_data = json.loads(resp.read().decode())
+        new_access = token_data.get("access_token")
+        if not new_access:
+            return None
+        new_refresh = token_data.get("refresh_token", refresh_token)
+        expires_in = token_data.get("expires_in", 3600)
+        new_expires_at = int(time.time() * 1000) + expires_in * 1000
+        cred["claudeAiOauth"]["accessToken"] = new_access
+        cred["claudeAiOauth"]["refreshToken"] = new_refresh
+        cred["claudeAiOauth"]["expiresAt"] = new_expires_at
+        with open(cred_path, "w") as f:
+            json.dump(cred, f)
+        return new_access
+    except Exception:
+        return None
+
+
+def _is_token_expired(cred):
+    expires_at = cred.get("claudeAiOauth", {}).get("expiresAt", 0)
+    now_ms = int(time.time() * 1000)
+    return now_ms >= (expires_at - 300000)
+
+
 def fetch_usage(open_page_on_fail=False):
     global usage_data, usage_last_fetched
     try:
@@ -596,6 +635,11 @@ def fetch_usage(open_page_on_fail=False):
             return
         with open(cred_path) as f:
             cred = json.load(f)
+
+        # Auto-refresh if expired
+        if _is_token_expired(cred):
+            _refresh_oauth_token(cred_path, cred)
+
         token = cred.get("claudeAiOauth", {}).get("accessToken", "")
         if not token:
             if open_page_on_fail:
@@ -605,8 +649,23 @@ def fetch_usage(open_page_on_fail=False):
         req = urllib.request.Request("https://api.anthropic.com/api/oauth/usage")
         req.add_header("Authorization", "Bearer " + token)
         req.add_header("anthropic-beta", "oauth-2025-04-20")
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                # Token invalid, try refresh and retry
+                new_token = _refresh_oauth_token(cred_path, cred)
+                if new_token:
+                    req2 = urllib.request.Request("https://api.anthropic.com/api/oauth/usage")
+                    req2.add_header("Authorization", "Bearer " + new_token)
+                    req2.add_header("anthropic-beta", "oauth-2025-04-20")
+                    with urllib.request.urlopen(req2, timeout=10) as resp:
+                        data = json.loads(resp.read().decode())
+                else:
+                    raise
+            else:
+                raise
 
         usage_data = {}
         for key in ("five_hour", "seven_day", "seven_day_sonnet"):
