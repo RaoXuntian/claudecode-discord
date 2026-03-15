@@ -399,8 +399,8 @@ class ClaudeBotTray : Form
 
         // git pull
         RunCmdOutput("git", "-C \"" + botDir + "\" pull origin main --tags");
-        // npm install & build
-        RunCmd("cd /d \"" + botDir + "\" && npm install && npm run build", true);
+        // npm install, rebuild native modules & build
+        RunCmd("cd /d \"" + botDir + "\" && npm install && npm rebuild better-sqlite3 && npm run build", true);
 
         currentVersion = GetVersion();
         updateAvailable = false;

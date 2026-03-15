@@ -279,7 +279,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 runShell("launchctl unload '\(plistDst)' 2>/dev/null")
             }
 
-            let output = runShell("cd '\(botDir)' && git pull origin main --tags && npm install --production && npm run build 2>&1")
+            let output = runShell("cd '\(botDir)' && git pull origin main --tags && npm install --production && npm rebuild better-sqlite3 && npm run build 2>&1")
 
             currentVersion = getVersion()
             updateAvailable = false

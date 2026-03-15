@@ -94,6 +94,12 @@ if [ "$1" = "--fg" ]; then
         npm run build
     fi
 
+    # Check native module compatibility
+    if ! node -e "require('./node_modules/better-sqlite3/build/Release/better_sqlite3.node')" 2>/dev/null; then
+        echo "[claude-bot] Native modules incompatible, rebuilding..."
+        npm rebuild better-sqlite3
+    fi
+
     echo "[claude-bot] Starting bot (foreground)..."
     touch "$SCRIPT_DIR/.bot.lock"
     trap 'rm -f "$SCRIPT_DIR/.bot.lock"' EXIT
@@ -101,6 +107,12 @@ if [ "$1" = "--fg" ]; then
 fi
 
 # Default: background mode (register with launchd)
+
+# Check native module compatibility
+if ! node -e "require('./node_modules/better-sqlite3/build/Release/better_sqlite3.node')" 2>/dev/null; then
+    echo "[claude-bot] Native modules incompatible, rebuilding..."
+    npm rebuild better-sqlite3
+fi
 
 # Stop existing bot if running
 if launchctl list | grep -q "$LABEL"; then

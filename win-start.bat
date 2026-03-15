@@ -79,6 +79,13 @@ if "%~1"=="--fg" (
         )
     )
 
+    :: Check native module compatibility
+    node -e "require('./node_modules/better-sqlite3/build/Release/better_sqlite3.node')" 2>nul
+    if errorlevel 1 (
+        echo [claude-bot] Native modules incompatible, rebuilding...
+        call npm rebuild better-sqlite3
+    )
+
     echo [claude-bot] Starting bot (foreground^)...
     node dist/index.js
     exit /b 0
@@ -124,6 +131,13 @@ if not exist "dist" (
         echo [claude-bot] Source changed, rebuilding...
         call npm run build
     )
+)
+
+:: Check native module compatibility
+node -e "require('./node_modules/better-sqlite3/build/Release/better_sqlite3.node')" 2>nul
+if errorlevel 1 (
+    echo [claude-bot] Native modules incompatible, rebuilding...
+    call npm rebuild better-sqlite3
 )
 
 :: Compile tray app if exe not found or source is newer
