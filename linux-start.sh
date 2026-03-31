@@ -96,6 +96,8 @@ if [ "$1" = "--regen-service" ]; then
     cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=Claude Discord Bot
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -196,6 +198,8 @@ fi
 cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=Claude Discord Bot
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
