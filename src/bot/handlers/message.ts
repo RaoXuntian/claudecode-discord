@@ -1,5 +1,6 @@
-import { Message, TextChannel, Attachment, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
-import { getProject } from "../../db/database.js";
+import { Message, TextChannel, DMChannel, Attachment, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { getProject, registerProject } from "../../db/database.js";
+import { getConfig } from "../../utils/config.js";
 import { isAllowedUser, checkRateLimit } from "../../security/guard.js";
 import { sessionManager } from "../../claude/session-manager.js";
 import fs from "node:fs";
@@ -61,17 +62,26 @@ async function downloadAttachment(
 }
 
 export async function handleMessage(message: Message): Promise<void> {
-  // Ignore bots and DMs
-  if (message.author.bot || !message.guild) return;
+  // Ignore bots
+  if (message.author.bot) return;
 
-  // Check if channel is registered
-  const project = getProject(message.channelId);
-  if (!project) return;
+  const isDM = !message.guild;
 
   // Auth check
   if (!isAllowedUser(message.author.id)) {
     await message.reply(L("You are not authorized to use this bot.", "이 봇을 사용할 권한이 없습니다."));
     return;
+  }
+
+  if (isDM) {
+    // Auto-register DM channel with BASE_PROJECT_DIR on first message
+    if (!getProject(message.channelId)) {
+      const { BASE_PROJECT_DIR } = getConfig();
+      registerProject(message.channelId, BASE_PROJECT_DIR, "dm");
+    }
+  } else {
+    // Check if guild channel is registered
+    if (!getProject(message.channelId)) return;
   }
 
   // Rate limit
@@ -91,6 +101,8 @@ export async function handleMessage(message: Message): Promise<void> {
   }
 
   let prompt = message.content.trim();
+
+  const project = getProject(message.channelId)!;
 
   // Download attachments (images, documents, code files, etc.)
   const imagePaths: string[] = [];
@@ -124,7 +136,7 @@ export async function handleMessage(message: Message): Promise<void> {
 
   if (!prompt) return;
 
-  const channel = message.channel as TextChannel;
+  const channel = message.channel as TextChannel | DMChannel;
 
   // If session is active, offer to queue the message
   if (sessionManager.isActive(message.channelId)) {
@@ -160,5 +172,5 @@ export async function handleMessage(message: Message): Promise<void> {
   }
 
   // Send message to Claude session
-  await sessionManager.sendMessage(channel, prompt);
+  await sessionManager.sendMessage(channel, prompt, message);
 }
