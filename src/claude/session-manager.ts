@@ -1,7 +1,9 @@
 import { query, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { TextChannel } from "discord.js";
+import type { TextChannel, DMChannel, Message } from "discord.js";
+
+type BotChannel = TextChannel | DMChannel;
 import {
   upsertSession,
   updateSessionStatus,
@@ -14,9 +16,7 @@ import { L } from "../utils/i18n.js";
 import {
   createToolApprovalEmbed,
   createAskUserQuestionEmbed,
-  createResultEmbed,
   createStopButton,
-  createCompletedButton,
   splitMessage,
   type AskQuestionData,
 } from "./output-formatter.js";
@@ -52,12 +52,13 @@ const pendingCustomInputs = new Map<string, { requestId: string }>();
 class SessionManager {
   private sessions = new Map<string, ActiveSession>();
   private static readonly MAX_QUEUE_SIZE = 5;
-  private messageQueue = new Map<string, { channel: TextChannel; prompt: string }[]>();
-  private pendingQueuePrompts = new Map<string, { channel: TextChannel; prompt: string }>();
+  private messageQueue = new Map<string, { channel: BotChannel; prompt: string }[]>();
+  private pendingQueuePrompts = new Map<string, { channel: BotChannel; prompt: string }>();
 
   async sendMessage(
-    channel: TextChannel,
+    channel: BotChannel,
     prompt: string,
+    reactMessage?: Message,
   ): Promise<void> {
     const channelId = channel.id;
     const project = getProject(channelId);
@@ -88,6 +89,15 @@ class SessionManager {
     let toolUseCount = 0;
     let hasTextOutput = false;
     let hasResult = false;
+
+    // Emoji reaction helpers (Hermes-style)
+    const addedReactions = new Set<string>();
+    const addReaction = async (emoji: string) => {
+      if (!reactMessage || addedReactions.has(emoji)) return;
+      addedReactions.add(emoji);
+      try { await reactMessage.react(emoji); } catch {}
+    };
+    await addReaction("👀");
 
     // Heartbeat timer - updates status message every 15s when no text output yet
     const heartbeatInterval = setInterval(async () => {
@@ -120,6 +130,15 @@ class SessionManager {
             input: Record<string, unknown>,
           ) => {
             toolUseCount++;
+
+            // Tool-specific emoji reactions
+            const toolEmojiMap: Record<string, string> = {
+              Read: "🛠️", Glob: "🛠️", Grep: "🛠️", TodoWrite: "🛠️",
+              Write: "💻", Edit: "💻", Bash: "💻",
+              WebSearch: "🌐", WebFetch: "🌐",
+              AskUserQuestion: "🧠",
+            };
+            await addReaction(toolEmojiMap[toolName] ?? "");
 
             // Tool activity labels for Discord display
             const toolLabels: Record<string, string> = {
@@ -301,7 +320,6 @@ class SessionManager {
               }
             }
           }
-
           // Throttled message edit
           const now = Date.now();
           if (now - lastEditTime >= EDIT_INTERVAL && responseBuffer.length > 0) {
@@ -330,38 +348,38 @@ class SessionManager {
             total_cost_usd?: number;
             duration_ms?: number;
           };
+          // Determine response text: prefer streamed buffer, fall back to result.result
+          const resultText = resultMsg.result ?? "";
+          const displayText = responseBuffer.length > 0 ? responseBuffer : resultText;
 
-          // Flush remaining buffer
-          if (responseBuffer.length > 0) {
-            const chunks = splitMessage(responseBuffer);
+          // Flush to Discord
+          if (displayText.length > 0) {
+            const chunks = splitMessage(displayText);
             try {
-              await currentMessage.edit(chunks[0] || L("Done.", "완료."));
+              await currentMessage.edit({ content: chunks[0], components: [] });
               for (let i = 1; i < chunks.length; i++) {
                 await channel.send(chunks[i]);
               }
             } catch (e) {
               console.warn(`[flush] Failed to edit final message for ${channelId}:`, e instanceof Error ? e.message : e);
+              try { await channel.send(chunks[0]); } catch {}
+            }
+          } else {
+            try {
+              await currentMessage.edit({ components: [] });
+            } catch (e) {
+              console.warn(`[complete] Failed to clear buttons for ${channelId}:`, e instanceof Error ? e.message : e);
             }
           }
 
-          // Replace stop button with completed button
-          try {
-            await currentMessage.edit({
-              components: [createCompletedButton()],
-            });
-          } catch (e) {
-            console.warn(`[complete] Failed to update completed button for ${channelId}:`, e instanceof Error ? e.message : e);
-          }
+          // Subtle footer: duration + optional cost (no embed, no "Task Complete" header)
+          const durationStr = `${((resultMsg.duration_ms ?? 0) / 1000).toFixed(1)}s`;
+          const costStr = getConfig().SHOW_COST && (resultMsg.total_cost_usd ?? 0) > 0
+            ? ` · $${(resultMsg.total_cost_usd ?? 0).toFixed(4)}`
+            : "";
+          await channel.send(`-# ⏱ ${durationStr}${costStr}`).catch(() => {});
 
-          // Send result embed
-          const resultText = resultMsg.result ?? L("Task completed", "작업 완료");
-          const resultEmbed = createResultEmbed(
-            resultText,
-            resultMsg.total_cost_usd ?? 0,
-            resultMsg.duration_ms ?? 0,
-            getConfig().SHOW_COST,
-          );
-          await channel.send({ embeds: [resultEmbed] });
+          await addReaction("✅");
 
           // Detect auth/credit errors in result and suggest re-login
           const resultAuthKeywords = ["credit balance", "not authenticated", "unauthorized", "authentication", "login required", "auth token", "expired", "not logged in", "please run /login"];
@@ -418,6 +436,7 @@ class SessionManager {
       }
 
       await channel.send(`❌ ${errMsg}`);
+      await addReaction("❌");
       updateSessionStatus(channelId, "offline");
     } finally {
       clearInterval(heartbeatInterval);
@@ -527,7 +546,7 @@ class SessionManager {
 
   // --- Message queue ---
 
-  setPendingQueue(channelId: string, channel: TextChannel, prompt: string): void {
+  setPendingQueue(channelId: string, channel: BotChannel, prompt: string): void {
     this.pendingQueuePrompts.set(channelId, { channel, prompt });
   }
 
@@ -558,7 +577,7 @@ class SessionManager {
     return this.pendingQueuePrompts.has(channelId);
   }
 
-  getQueue(channelId: string): { channel: TextChannel; prompt: string }[] {
+  getQueue(channelId: string): { channel: BotChannel; prompt: string }[] {
     return this.messageQueue.get(channelId) ?? [];
   }
 

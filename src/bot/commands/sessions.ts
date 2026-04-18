@@ -229,6 +229,28 @@ async function listSessions(projectPath: string): Promise<SessionInfo[]> {
   return sessions;
 }
 
+/**
+ * Find the project path (cwd) for a given Claude session ID by scanning all session dirs.
+ */
+export function findProjectPathBySessionId(sessionId: string): string | null {
+  const claudeDir = path.join(os.homedir(), ".claude", "projects");
+  if (!fs.existsSync(claudeDir)) return null;
+
+  for (const dir of fs.readdirSync(claudeDir)) {
+    const filePath = path.join(claudeDir, dir, `${sessionId}.jsonl`);
+    if (!fs.existsSync(filePath)) continue;
+
+    const content = fs.readFileSync(filePath, { encoding: "utf-8" });
+    for (const line of content.split("\n").slice(0, 10)) {
+      try {
+        const entry = JSON.parse(line);
+        if (entry.cwd) return entry.cwd as string;
+      } catch {}
+    }
+  }
+  return null;
+}
+
 export const data = new SlashCommandBuilder()
   .setName("sessions")
   .setDescription("List and resume existing Claude Code sessions for this project");

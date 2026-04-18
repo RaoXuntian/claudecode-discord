@@ -9,8 +9,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { isAllowedUser } from "../../security/guard.js";
 import { sessionManager } from "../../claude/session-manager.js";
-import { upsertSession, getProject, getSession } from "../../db/database.js";
-import { findSessionDir, getLastAssistantMessage } from "../commands/sessions.js";
+import { upsertSession, getProject, getSession, registerProject } from "../../db/database.js";
+import { findSessionDir, getLastAssistantMessage, findProjectPathBySessionId } from "../commands/sessions.js";
 import { L } from "../../utils/i18n.js";
 
 export async function handleButtonInteraction(
@@ -364,6 +364,36 @@ export async function handleSelectMenuInteraction(
       content: L(`✅ Selected: **${answer}**`, `✅ 선택됨: **${answer}**`),
       embeds: [],
       components: [],
+    });
+    return;
+  }
+
+  if (interaction.customId === "resume-select") {
+    const sessionId = interaction.values[0];
+    const projectPath = findProjectPathBySessionId(sessionId);
+
+    if (!projectPath) {
+      await interaction.reply({
+        content: L("Session not found. It may have been deleted.", "세션을 찾을 수 없습니다. 삭제되었을 수 있습니다."),
+        flags: ["Ephemeral"],
+      });
+      return;
+    }
+
+    const channelId = interaction.channelId;
+    const guildId = interaction.guildId ?? "dm";
+
+    registerProject(channelId, projectPath, guildId);
+    const { randomUUID } = await import("node:crypto");
+    upsertSession(randomUUID(), channelId, sessionId, "idle");
+
+    const projectName = projectPath.split(/[\\/]/).pop() || projectPath;
+    await interaction.reply({
+      content: L(
+        `✅ Switched to \`${projectName}\` (\`${projectPath}\`). Session \`${sessionId.slice(0, 8)}...\` will resume on your next message.`,
+        `✅ \`${projectName}\` (\`${projectPath}\`)으로 전환했습니다. 다음 메시지부터 세션 \`${sessionId.slice(0, 8)}...\`을(를) 재개합니다.`,
+      ),
+      flags: ["Ephemeral"],
     });
     return;
   }

@@ -1,6 +1,7 @@
 import {
   Client,
   GatewayIntentBits,
+  Partials,
   REST,
   Routes,
   Collection,
@@ -24,8 +25,9 @@ import * as clearSessionsCmd from "./commands/clear-sessions.js";
 import * as lastCmd from "./commands/last.js";
 import * as queueCmd from "./commands/queue.js";
 import * as usageCmd from "./commands/usage.js";
+import * as resumeCmd from "./commands/resume.js";
 
-const commands = [registerCmd, unregisterCmd, statusCmd, stopCmd, autoApproveCmd, sessionsCmd, clearSessionsCmd, lastCmd, queueCmd, usageCmd];
+const commands = [registerCmd, unregisterCmd, statusCmd, stopCmd, autoApproveCmd, sessionsCmd, clearSessionsCmd, lastCmd, queueCmd, usageCmd, resumeCmd];
 const commandMap = new Collection<
   string,
   { execute: (interaction: ChatInputCommandInteraction) => Promise<void> }
@@ -43,7 +45,9 @@ export async function startBot(): Promise<Client> {
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
+      GatewayIntentBits.DirectMessages,
     ],
+    partials: [Partials.Channel, Partials.User],
   });
 
   // Register slash commands after successful login (network guaranteed)
@@ -51,15 +55,16 @@ export async function startBot(): Promise<Client> {
     console.log(`Bot logged in as ${client.user?.tag}`);
     try {
       const rest = new REST({ version: "10" }).setToken(config.DISCORD_BOT_TOKEN);
+      const appId = ((await rest.get(Routes.currentApplication())) as { id: string }).id;
       const commandData = commands.map((c) => c.data.toJSON());
-      await rest.put(
-        Routes.applicationGuildCommands(
-          (await rest.get(Routes.currentApplication()) as { id: string }).id,
-          config.DISCORD_GUILD_ID,
-        ),
-        { body: commandData },
-      );
-      console.log(`Registered ${commandData.length} slash commands`);
+
+      // Guild commands: instant availability in the registered guild
+      await rest.put(Routes.applicationGuildCommands(appId, config.DISCORD_GUILD_ID), { body: commandData });
+
+      // Global commands: enables slash commands in DMs (propagates up to 1 hour)
+      await rest.put(Routes.applicationCommands(appId), { body: commandData });
+
+      console.log(`Registered ${commandData.length} slash commands (guild + global)`);
     } catch (error) {
       console.error("Failed to register slash commands:", error);
     }
@@ -115,8 +120,24 @@ export async function startBot(): Promise<Client> {
     }
   });
 
+  // discord.js v14 does not pass `type` in MESSAGE_CREATE packets, so partial DM
+  // channels fail the isTextBased() check and messageCreate never fires for DMs.
+  // Work around by fetching the channel+message via REST and calling handleMessage directly.
+  client.ws.on("MESSAGE_CREATE" as any, async (data: any) => {
+    if (data.guild_id || data.author?.bot) return; // guild messages handled by messageCreate
+    try {
+      const channel = await client.channels.fetch(data.channel_id);
+      if (!channel?.isTextBased()) return;
+      const message = await (channel as any).messages.fetch(data.id);
+      await handleMessage(message);
+    } catch (e) {
+      console.error("[DM] Error handling DM:", (e as Error).message);
+    }
+  });
+
   // Handle messages (wrapped with error handler to prevent silent hangs)
   client.on("messageCreate", async (message) => {
+    if (!message.guild) return; // DMs are handled by the raw MESSAGE_CREATE listener above
     try {
       await handleMessage(message);
     } catch (error) {
