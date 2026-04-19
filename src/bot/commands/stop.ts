@@ -18,7 +18,7 @@ export async function execute(
 
   if (!project) {
     await interaction.editReply({
-      content: L("This channel is not registered to any project.", "이 채널은 어떤 프로젝트에도 등록되어 있지 않습니다."),
+      content: L("This channel is not registered to any project.", "此频道未注册任何项目。"),
     });
     return;
   }
@@ -28,15 +28,15 @@ export async function execute(
     await interaction.editReply({
       embeds: [
         {
-          title: L("Session Stopped", "세션 중지됨"),
-          description: L(`Stopped Claude Code session for \`${project.project_path}\``, `\`${project.project_path}\` Claude Code 세션이 중지되었습니다`),
+          title: L("Session Stopped", "会话已停止"),
+          description: L(`Stopped Claude Code session for \`${project.project_path}\``, `\`${project.project_path}\` Claude Code 会话已停止`),
           color: 0xff6600,
         },
       ],
     });
   } else {
     await interaction.editReply({
-      content: L("No active session in this channel.", "이 채널에 활성 세션이 없습니다."),
+      content: L("No active session in this channel.", "此频道没有活动的会话。"),
     });
   }
 }

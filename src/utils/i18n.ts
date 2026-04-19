@@ -23,7 +23,7 @@ function getCurrentLang(): "en" | "kr" {
 
 /**
  * Localization helper. Returns the string matching the current language.
- * Usage: L("Hello", "안녕하세요")
+ * Usage: L("Hello", "你好")
  */
 export function L(en: string, kr: string): string {
   return getCurrentLang() === "kr" ? kr : en;

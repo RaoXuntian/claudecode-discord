@@ -29,7 +29,7 @@ export async function execute(
     await interaction.editReply({
       content: L(
         "This channel is not registered to any project.",
-        "이 채널은 어떤 프로젝트에도 등록되어 있지 않습니다."
+        "此频道未注册任何项目。"
       ),
     });
     return;
@@ -41,7 +41,7 @@ export async function execute(
     const queue = sessionManager.getQueue(channelId);
     if (queue.length === 0) {
       await interaction.editReply({
-        content: L("No messages in queue.", "큐에 대기 중인 메시지가 없습니다."),
+        content: L("No messages in queue.", "队列中没有等待中的消息。"),
       });
       return;
     }
@@ -67,7 +67,7 @@ export async function execute(
 
     const clearButton = new ButtonBuilder()
       .setCustomId(`queue-clear:${channelId}`)
-      .setLabel(L("Clear All", "모두 취소"))
+      .setLabel(L("Clear All", "全部取消"))
       .setStyle(ButtonStyle.Danger);
 
     // Discord allows max 5 buttons per row, max 5 rows
@@ -83,7 +83,7 @@ export async function execute(
         {
           title: L(
             `📋 Message Queue (${queue.length})`,
-            `📋 메시지 큐 (${queue.length}개)`
+            `📋 消息队列（${queue.length} 条）`
           ),
           description: list,
           color: 0x5865f2,
@@ -96,10 +96,10 @@ export async function execute(
     await interaction.editReply({
       embeds: [
         {
-          title: L("Queue Cleared", "큐 초기화됨"),
+          title: L("Queue Cleared", "队列已清空"),
           description: L(
             `Cleared ${cleared} queued message(s).`,
-            `${cleared}개의 대기 중이던 메시지를 취소했습니다.`
+            `已取消 ${cleared} 条等待中的消息。`
           ),
           color: 0xff6600,
         },

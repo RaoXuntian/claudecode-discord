@@ -1,9 +1,9 @@
 import { query, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { TextChannel, DMChannel, Message } from "discord.js";
+import type { TextChannel, DMChannel, ThreadChannel, Message } from "discord.js";
 
-type BotChannel = TextChannel | DMChannel;
+type BotChannel = TextChannel | DMChannel | ThreadChannel;
 import {
   upsertSession,
   updateSessionStatus,
@@ -73,22 +73,42 @@ class SessionManager {
     // Update status to online
     upsertSession(dbId, channelId, resumeSessionId ?? null, "online");
 
+    // Typing indicator — shows "Bot is typing…" while Claude works, before text streams
+    let typingActive = true;
+    const refreshTyping = async () => {
+      if (!typingActive) return;
+      try { await channel.sendTyping(); } catch {}
+    };
+    await refreshTyping(); // show immediately before sending the initial message
+    const typingInterval = setInterval(refreshTyping, 8_000); // Discord typing lasts ~10s
+
     // Streaming state
     let responseBuffer = "";
     let lastEditTime = 0;
     const stopRow = createStopButton(channelId);
-    let currentMessage = await channel.send({
-      content: L("⏳ Thinking...", "⏳ 생각 중..."),
-      components: [stopRow],
-    });
+
+    // Hermes reply-to mode "first": reply to user's original message so the response is
+    // visually anchored to it; fall back to a plain send if the message was deleted.
+    let currentMessage: Message;
+    try {
+      currentMessage = reactMessage
+        ? await reactMessage.reply({ content: L("⏳ Thinking...", "⏳ 思考中..."), components: [stopRow] })
+        : await channel.send({ content: L("⏳ Thinking...", "⏳ 思考中..."), components: [stopRow] });
+    } catch {
+      currentMessage = await channel.send({ content: L("⏳ Thinking...", "⏳ 思考中..."), components: [stopRow] });
+    }
     const EDIT_INTERVAL = 1500; // ms between edits (Discord rate limit friendly)
 
     // Activity tracking for progress display
     const startTime = Date.now();
-    let lastActivity = L("Thinking...", "생각 중...");
+    let lastActivity = L("Thinking...", "思考中...");
     let toolUseCount = 0;
     let hasTextOutput = false;
     let hasResult = false;
+
+    // Thinking / reasoning accumulation (Hermes-style: show reasoning before response)
+    let thinkingBuffer = "";
+    let thinkingSent = false;
 
     // Emoji reaction helpers (Hermes-style)
     const addedReactions = new Set<string>();
@@ -124,6 +144,10 @@ class SessionManager {
           permissionMode: "default",
           env: { ...process.env, ANTHROPIC_API_KEY: undefined, PATH: `${path.dirname(process.execPath)}:${process.env.PATH ?? ""}` },
           ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+          // Thinking is opt-in: only pass the option when SHOW_THINKING=true
+          // (adaptive thinking requires a compatible model; forcing it on unsupported
+          //  models causes the query to fail silently and results to disappear)
+          ...(getConfig().SHOW_THINKING ? { thinking: { type: "adaptive" } as const } : {}),
 
           canUseTool: async (
             toolName: string,
@@ -142,15 +166,15 @@ class SessionManager {
 
             // Tool activity labels for Discord display
             const toolLabels: Record<string, string> = {
-              Read: L("Reading files", "파일 읽는 중"),
-              Glob: L("Searching files", "파일 검색 중"),
-              Grep: L("Searching code", "코드 검색 중"),
-              Write: L("Writing file", "파일 작성 중"),
-              Edit: L("Editing file", "파일 편집 중"),
-              Bash: L("Running command", "명령어 실행 중"),
-              WebSearch: L("Searching web", "웹 검색 중"),
-              WebFetch: L("Fetching URL", "URL 가져오는 중"),
-              TodoWrite: L("Updating tasks", "작업 업데이트 중"),
+              Read: L("Reading files", "正在读取文件"),
+              Glob: L("Searching files", "正在搜索文件"),
+              Grep: L("Searching code", "正在搜索代码"),
+              Write: L("Writing file", "正在写入文件"),
+              Edit: L("Editing file", "正在编辑文件"),
+              Bash: L("Running command", "正在执行命令"),
+              WebSearch: L("Searching web", "正在搜索网络"),
+              WebFetch: L("Fetching URL", "正在获取 URL"),
+              TodoWrite: L("Updating tasks", "正在更新任务"),
             };
             const filePath = typeof input.file_path === "string"
               ? ` \`${(input.file_path as string).split(/[\\/]/).pop()}\``
@@ -220,7 +244,7 @@ class SessionManager {
                   updateSessionStatus(channelId, "online");
                   return {
                     behavior: "deny" as const,
-                    message: L("Question timed out", "질문 시간 초과"),
+                    message: L("Question timed out", "问题已超时"),
                   };
                 }
 
@@ -309,14 +333,38 @@ class SessionManager {
           }
         }
 
-        // Handle streaming text
+        // Handle streaming text (and thinking blocks)
         if (message.type === "assistant" && "content" in message) {
           const content = message.content;
           if (Array.isArray(content)) {
             for (const block of content) {
+              // Collect thinking/reasoning blocks (sent to Discord before the main response)
+              if (
+                typeof block === "object" && block !== null &&
+                "type" in block && (block as { type: string }).type === "thinking" &&
+                "thinking" in block && typeof (block as { thinking: unknown }).thinking === "string"
+              ) {
+                thinkingBuffer += (block as { thinking: string }).thinking;
+              }
+
               if ("text" in block && typeof block.text === "string") {
+                // Before the first text, flush accumulated thinking to Discord
+                if (!thinkingSent && thinkingBuffer.length > 0 && getConfig().SHOW_THINKING) {
+                  thinkingSent = true;
+                  const raw = thinkingBuffer.length > 1800
+                    ? thinkingBuffer.slice(0, 1800) + "\n*(推理内容过长，已截断)*"
+                    : thinkingBuffer;
+                  // Format as blockquote so it's visually distinct
+                  const quoted = raw.split("\n").map((l) => `> ${l}`).join("\n");
+                  await channel.send(`-# 🧠 推理过程\n${quoted}`).catch(() => {});
+                }
                 responseBuffer += block.text;
                 hasTextOutput = true;
+                // Stop typing indicator once real text starts streaming
+                if (typingActive) {
+                  typingActive = false;
+                  clearInterval(typingInterval);
+                }
               }
             }
           }
@@ -343,6 +391,16 @@ class SessionManager {
 
         // Handle result
         if ("result" in message) {
+          // Edge case: thinking arrived but no text followed (e.g. pure tool-use turn)
+          if (!thinkingSent && thinkingBuffer.length > 0 && getConfig().SHOW_THINKING) {
+            thinkingSent = true;
+            const raw = thinkingBuffer.length > 1800
+              ? thinkingBuffer.slice(0, 1800) + "\n*(推理内容过长，已截断)*"
+              : thinkingBuffer;
+            const quoted = raw.split("\n").map((l) => `> ${l}`).join("\n");
+            await channel.send(`-# 🧠 推理过程\n${quoted}`).catch(() => {});
+          }
+
           const resultMsg = message as {
             result?: string;
             total_cost_usd?: number;
@@ -387,7 +445,7 @@ class SessionManager {
           if (resultAuthKeywords.some((kw) => lowerResult.includes(kw))) {
             await channel.send(L(
               "🔑 Claude Code is not logged in. Please open a terminal on the host PC and run `claude login` to authenticate, then try again.",
-              "🔑 Claude Code 로그인이 필요합니다. 호스트 PC에서 터미널을 열고 `claude login`을 실행하여 인증 후 다시 시도해 주세요.",
+              "🔑 Claude Code 未登录，请在主机上打开终端，运行 `claude login` 完成认证后重试。",
             ));
           }
 
@@ -431,7 +489,7 @@ class SessionManager {
       if (authKeywords.some((kw) => lowerMsg.includes(kw))) {
         errMsg += L(
           "\n\n🔑 Claude Code is not logged in. Please open a terminal on the host PC and run `claude login` to authenticate, then try again.",
-          "\n\n🔑 Claude Code 로그인이 필요합니다. 호스트 PC에서 터미널을 열고 `claude login`을 실행하여 인증 후 다시 시도해 주세요.",
+          "\n\n🔑 Claude Code 未登录，请在主机上打开终端，运行 `claude login` 完成认证后重试。",
         );
       }
 
@@ -439,6 +497,8 @@ class SessionManager {
       await addReaction("❌");
       updateSessionStatus(channelId, "offline");
     } finally {
+      typingActive = false;
+      clearInterval(typingInterval);
       clearInterval(heartbeatInterval);
       this.sessions.delete(channelId);
 
@@ -459,8 +519,8 @@ class SessionManager {
         const remaining = queue.length;
         const preview = next.prompt.length > 40 ? next.prompt.slice(0, 40) + "…" : next.prompt;
         const msg = remaining > 0
-          ? L(`📨 Processing queued message... (remaining: ${remaining})\n> ${preview}`, `📨 대기 중이던 메시지를 처리합니다... (남은 큐: ${remaining}개)\n> ${preview}`)
-          : L(`📨 Processing queued message...\n> ${preview}`, `📨 대기 중이던 메시지를 처리합니다...\n> ${preview}`);
+          ? L(`📨 Processing queued message... (remaining: ${remaining})\n> ${preview}`, `📨 正在处理队列中的消息...（剩余：${remaining}）\n> ${preview}`)
+          : L(`📨 Processing queued message...\n> ${preview}`, `📨 正在处理队列中的消息...\n> ${preview}`);
         channel.send(msg).catch(() => {});
         this.sendMessage(next.channel, next.prompt).catch((err) => {
           console.error("Queue sendMessage error:", err);
