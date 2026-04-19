@@ -88,7 +88,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 ## Installation
 
 ```bash
-git clone https://github.com/chadingTV/claudecode-discord.git
+git clone https://github.com/RaoXuntian/claudecode-discord.git
 cd claudecode-discord
 
 # macOS / Linux
