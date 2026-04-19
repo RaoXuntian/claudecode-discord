@@ -59,12 +59,16 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 
 - 💰 **No API key** — runs on Claude Code CLI with your Pro or Max subscription
 - 📱 Remote control Claude Code from Discord (desktop/web/mobile)
+- 💬 **DM support** — message the bot directly without a registered channel
 - 🔀 Independent sessions per channel (project directory mapping)
 - ✅ Tool use approve/deny via Discord button UI
 - ❓ Interactive question UI (selectable options + custom text input)
 - ⏹️ Stop button for instant cancellation during progress, message queue for sequential tasks
 - 📎 File attachments support (images, documents, code files)
 - 🔄 Session resume/delete/new (persist across bot restarts, last conversation preview)
+- 🔍 **`/resume`** — list and resume any Claude Code session from any project on the machine (including CLI-started sessions)
+- 🧠 **Thinking display** — show Claude's reasoning process as collapsible spoilers before the response (`SHOW_THINKING=true`)
+- 👀 **Emoji reactions** — live status on your message (👀 received · 🛠️ reading · 💻 editing · 🌐 searching · ✅ done · ❌ error)
 - ⏱️ Real-time progress display (tool usage, elapsed time)
 - 🔒 User whitelist, rate limiting, path security, duplicate instance prevention
 - 📊 **Claude Code usage dashboard** in control panel — Session (5hr), Weekly (7day), Weekly Sonnet with progress bars, auto-refresh, click to open usage page
@@ -142,7 +146,8 @@ claudecode-discord/
 | `/status` | Check all session statuses | |
 | `/stop` | Stop current channel's session | |
 | `/auto-approve on\|off` | Toggle auto-approval | `/auto-approve on` |
-| `/sessions` | List sessions to resume or delete | |
+| `/sessions` | List sessions for the current channel to resume or delete | |
+| `/resume` | List **all** Claude Code sessions across all projects on this machine | |
 | `/last` | Show the last Claude response from current session | |
 | `/usage` | Show Claude Code usage (Session 5hr / Weekly / Sonnet) | |
 | `/queue list` | View queued messages (cancel individually or all) | |
@@ -179,6 +184,9 @@ Attach images, documents, or code files and Claude can read and analyze them.
 - Streaming responses edited every 1.5s into Discord messages
 - Heartbeat progress display every 15s until text output begins
 - Markdown code blocks preserved across message splits
+- DM messages auto-registered to `BASE_PROJECT_DIR`
+- Message batching (800ms window) merges rapid-fire messages into one prompt
+- Optional thinking display: `SHOW_THINKING=true` renders Claude's reasoning before responses
 
 **Session States:** 🟢 working · 🟡 waiting for approval · ⚪ idle · 🔴 offline
 
