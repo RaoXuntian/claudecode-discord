@@ -67,7 +67,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 - 📎 File attachments support (images, documents, code files)
 - 🔄 Session resume/delete/new (persist across bot restarts, last conversation preview)
 - 🔍 **`/resume`** — list and resume any Claude Code session from any project on the machine (including CLI-started sessions)
-- 🧠 **Thinking display** — show Claude's reasoning process as collapsible spoilers before the response (`SHOW_THINKING=true`)
+- 🧠 **Thinking display** — show Claude's reasoning process as blockquotes before the response (`SHOW_THINKING=true`)
 - 👀 **Emoji reactions** — live status on your message (👀 received · 🛠️ reading · 💻 editing · 🌐 searching · ✅ done · ❌ error)
 - ⏱️ Real-time progress display (tool usage, elapsed time)
 - 🔒 User whitelist, rate limiting, path security, duplicate instance prevention

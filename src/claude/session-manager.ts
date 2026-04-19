@@ -352,11 +352,11 @@ class SessionManager {
                 if (!thinkingSent && thinkingBuffer.length > 0 && getConfig().SHOW_THINKING) {
                   thinkingSent = true;
                   const raw = thinkingBuffer.length > 1800
-                    ? thinkingBuffer.slice(0, 1800) + "\n*(推理内容过长，已截断)*"
+                    ? thinkingBuffer.slice(0, 1800) + `\n*(${L("Reasoning truncated (too long)", "推理内容过长，已截断")})*`
                     : thinkingBuffer;
                   // Format as blockquote so it's visually distinct
                   const quoted = raw.split("\n").map((l) => `> ${l}`).join("\n");
-                  await channel.send(`-# 🧠 推理过程\n${quoted}`).catch(() => {});
+                  await channel.send(`-# 🧠 ${L("Reasoning", "推理过程")}\n${quoted}`).catch(() => {});
                 }
                 responseBuffer += block.text;
                 hasTextOutput = true;
@@ -395,10 +395,10 @@ class SessionManager {
           if (!thinkingSent && thinkingBuffer.length > 0 && getConfig().SHOW_THINKING) {
             thinkingSent = true;
             const raw = thinkingBuffer.length > 1800
-              ? thinkingBuffer.slice(0, 1800) + "\n*(推理内容过长，已截断)*"
+              ? thinkingBuffer.slice(0, 1800) + `\n*(${L("Reasoning truncated (too long)", "推理内容过长，已截断")})*`
               : thinkingBuffer;
             const quoted = raw.split("\n").map((l) => `> ${l}`).join("\n");
-            await channel.send(`-# 🧠 推理过程\n${quoted}`).catch(() => {});
+            await channel.send(`-# 🧠 ${L("Reasoning", "推理过程")}\n${quoted}`).catch(() => {});
           }
 
           const resultMsg = message as {
