@@ -18,7 +18,7 @@ export async function handleButtonInteraction(
 ): Promise<void> {
   if (!isAllowedUser(interaction.user.id)) {
     await interaction.reply({
-      content: L("You are not authorized.", "권한이 없습니다."),
+      content: L("You are not authorized.", "您没有权限执行此操作。"),
       ephemeral: true,
     });
     return;
@@ -32,7 +32,7 @@ export async function handleButtonInteraction(
 
   if (!requestId) {
     await interaction.reply({
-      content: L("Invalid button interaction.", "잘못된 버튼 상호작용입니다."),
+      content: L("Invalid button interaction.", "无效的按钮交互。"),
       ephemeral: true,
     });
     return;
@@ -43,12 +43,12 @@ export async function handleButtonInteraction(
     const channelId = requestId;
     const stopped = await sessionManager.stopSession(channelId);
     await interaction.update({
-      content: L("⏹️ Task has been stopped.", "⏹️ 작업이 중지되었습니다."),
+      content: L("⏹️ Task has been stopped.", "⏹️ 任务已停止。"),
       components: [],
     });
     if (!stopped) {
       await interaction.followUp({
-        content: L("No active session.", "활성 세션이 없습니다."),
+        content: L("No active session.", "没有活动的会话。"),
         ephemeral: true,
       });
     }
@@ -61,14 +61,14 @@ export async function handleButtonInteraction(
     const confirmed = sessionManager.confirmQueue(channelId);
     if (!confirmed) {
       await interaction.update({
-        content: L("⏳ Queue request has expired.", "⏳ 큐 요청이 만료되었습니다."),
+        content: L("⏳ Queue request has expired.", "⏳ 队列请求已过期。"),
         components: [],
       });
       return;
     }
     const queueSize = sessionManager.getQueueSize(channelId);
     await interaction.update({
-      content: L(`📨 Message added to queue (${queueSize}/5). It will be processed after the current task.`, `📨 메시지가 큐에 추가되었습니다 (${queueSize}/5). 이전 작업 완료 후 자동으로 처리됩니다.`),
+      content: L(`📨 Message added to queue (${queueSize}/5). It will be processed after the current task.`, `📨 消息已加入队列（${queueSize}/5），将在当前任务完成后自动处理。`),
       components: [],
     });
     return;
@@ -79,7 +79,7 @@ export async function handleButtonInteraction(
     const channelId = requestId;
     sessionManager.cancelQueue(channelId);
     await interaction.update({
-      content: L("Cancelled.", "취소되었습니다."),
+      content: L("Cancelled.", "已取消。"),
       components: [],
     });
     return;
@@ -95,10 +95,10 @@ export async function handleButtonInteraction(
     await interaction.update({
       embeds: [
         {
-          title: L("Session Resumed", "세션 재개됨"),
+          title: L("Session Resumed", "会话已恢复"),
           description: L(
             `Session: \`${sessionId.slice(0, 8)}...\`\n\nNext message you send will resume this conversation.`,
-            `세션: \`${sessionId.slice(0, 8)}...\`\n\n다음 메시지부터 이 대화가 재개됩니다.`
+            `会话：\`${sessionId.slice(0, 8)}...\`\n\n下一条消息起将继续此对话。`
           ),
           color: 0x00ff00,
         },
@@ -111,7 +111,7 @@ export async function handleButtonInteraction(
   // Handle session cancel button
   if (action === "session-cancel") {
     await interaction.update({
-      content: L("Cancelled.", "취소되었습니다."),
+      content: L("Cancelled.", "已取消。"),
       embeds: [],
       components: [],
     });
@@ -127,12 +127,12 @@ export async function handleButtonInteraction(
 
     const resolved = sessionManager.resolveQuestion(actualRequestId, selectedLabel);
     if (!resolved) {
-      await interaction.reply({ content: L("This question has expired.", "이 질문은 만료되었습니다."), ephemeral: true });
+      await interaction.reply({ content: L("This question has expired.", "此问题已过期。"), ephemeral: true });
       return;
     }
 
     await interaction.update({
-      content: L(`✅ Selected: **${selectedLabel}**`, `✅ 선택됨: **${selectedLabel}**`),
+      content: L(`✅ Selected: **${selectedLabel}**`, `✅ 已选择：**${selectedLabel}**`),
       embeds: [],
       components: [],
     });
@@ -144,7 +144,7 @@ export async function handleButtonInteraction(
     sessionManager.enableCustomInput(requestId, interaction.channelId);
 
     await interaction.update({
-      content: L("✏️ Type your answer...", "✏️ 답변을 입력하세요..."),
+      content: L("✏️ Type your answer...", "✏️ 请输入您的回答..."),
       embeds: [],
       components: [],
     });
@@ -158,10 +158,10 @@ export async function handleButtonInteraction(
     await interaction.update({
       embeds: [
         {
-          title: L("Queue Cleared", "큐 초기화됨"),
+          title: L("Queue Cleared", "队列已清空"),
           description: L(
             `Cleared ${cleared} queued message(s).`,
-            `${cleared}개의 대기 중이던 메시지를 취소했습니다.`
+            `已取消 ${cleared} 条等待中的消息。`
           ),
           color: 0xff6600,
         },
@@ -181,7 +181,7 @@ export async function handleButtonInteraction(
 
     if (!removed) {
       await interaction.update({
-        content: L("This item is no longer in the queue.", "이 항목은 이미 큐에 없습니다."),
+        content: L("This item is no longer in the queue.", "此消息已不在队列中。"),
         embeds: [],
         components: [],
       });
@@ -196,8 +196,8 @@ export async function handleButtonInteraction(
       await interaction.update({
         embeds: [
           {
-            title: L("Message Removed", "메시지 취소됨"),
-            description: L(`Removed: ${preview}\n\nQueue is now empty.`, `취소됨: ${preview}\n\n큐가 비었습니다.`),
+            title: L("Message Removed", "消息已取消"),
+            description: L(`Removed: ${preview}\n\nQueue is now empty.`, `已取消：${preview}\n\n队列已清空。`),
             color: 0xff6600,
           },
         ],
@@ -224,7 +224,7 @@ export async function handleButtonInteraction(
     );
     const clearButton = new ButtonBuilder()
       .setCustomId(`queue-clear:${channelId}`)
-      .setLabel(L("Clear All", "모두 취소"))
+      .setLabel(L("Clear All", "全部取消"))
       .setStyle(ButtonStyle.Danger);
 
     const allButtons = [...itemButtons.slice(0, 19), clearButton];
@@ -238,9 +238,9 @@ export async function handleButtonInteraction(
         {
           title: L(
             `📋 Message Queue (${queue.length})`,
-            `📋 메시지 큐 (${queue.length}개)`
+            `📋 消息队列（${queue.length} 条）`
           ),
-          description: `~~${preview}~~ ${L("removed", "취소됨")}\n\n${list}`,
+          description: `~~${preview}~~ ${L("removed", "已取消")}\n\n${list}`,
           color: 0x5865f2,
         },
       ],
@@ -257,7 +257,7 @@ export async function handleButtonInteraction(
 
     if (!project) {
       await interaction.update({
-        content: L("Project not found.", "프로젝트를 찾을 수 없습니다."),
+        content: L("Project not found.", "找不到项目。"),
         embeds: [],
         components: [],
       });
@@ -280,10 +280,10 @@ export async function handleButtonInteraction(
         await interaction.update({
           embeds: [
             {
-              title: L("Session Deleted", "세션 삭제됨"),
+              title: L("Session Deleted", "会话已删除"),
               description: L(
                 `Session \`${sessionId.slice(0, 8)}...\` has been deleted.\nYour next message will start a new conversation.`,
-                `세션 \`${sessionId.slice(0, 8)}...\`이(가) 삭제되었습니다.\n다음 메시지부터 새로운 대화가 시작됩니다.`
+                `会话 \`${sessionId.slice(0, 8)}...\` 已删除。\n下一条消息起将开始新对话。`
               ),
               color: 0xff6b6b,
             },
@@ -292,7 +292,7 @@ export async function handleButtonInteraction(
         });
       } catch {
         await interaction.update({
-          content: L("Failed to delete session file.", "세션 파일 삭제에 실패했습니다."),
+          content: L("Failed to delete session file.", "会话文件删除失败。"),
           embeds: [],
           components: [],
         });
@@ -315,16 +315,16 @@ export async function handleButtonInteraction(
   const resolved = sessionManager.resolveApproval(requestId, decision);
   if (!resolved) {
     await interaction.reply({
-      content: L("This approval request has expired.", "이 승인 요청은 만료되었습니다."),
+      content: L("This approval request has expired.", "此审批请求已过期。"),
       ephemeral: true,
     });
     return;
   }
 
   const labels: Record<string, string> = {
-    approve: L("✅ Approved", "✅ 승인됨"),
-    deny: L("❌ Denied", "❌ 거부됨"),
-    "approve-all": L("⚡ Auto-approve enabled for this channel", "⚡ 이 채널에서 자동 승인이 활성화되었습니다"),
+    approve: L("✅ Approved", "✅ 已批准"),
+    deny: L("❌ Denied", "❌ 已拒绝"),
+    "approve-all": L("⚡ Auto-approve enabled for this channel", "⚡ 已为此频道启用自动批准"),
   };
 
   await interaction.update({
@@ -338,7 +338,7 @@ export async function handleSelectMenuInteraction(
 ): Promise<void> {
   if (!isAllowedUser(interaction.user.id)) {
     await interaction.reply({
-      content: L("You are not authorized.", "권한이 없습니다."),
+      content: L("You are not authorized.", "您没有权限执行此操作。"),
       ephemeral: true,
     });
     return;
@@ -356,12 +356,12 @@ export async function handleSelectMenuInteraction(
 
     const resolved = sessionManager.resolveQuestion(askRequestId, answer);
     if (!resolved) {
-      await interaction.reply({ content: L("This question has expired.", "이 질문은 만료되었습니다."), ephemeral: true });
+      await interaction.reply({ content: L("This question has expired.", "此问题已过期。"), ephemeral: true });
       return;
     }
 
     await interaction.update({
-      content: L(`✅ Selected: **${answer}**`, `✅ 선택됨: **${answer}**`),
+      content: L(`✅ Selected: **${answer}**`, `✅ 已选择：**${answer}**`),
       embeds: [],
       components: [],
     });
@@ -374,7 +374,7 @@ export async function handleSelectMenuInteraction(
 
     if (!projectPath) {
       await interaction.reply({
-        content: L("Session not found. It may have been deleted.", "세션을 찾을 수 없습니다. 삭제되었을 수 있습니다."),
+        content: L("Session not found. It may have been deleted.", "找不到会话，可能已被删除。"),
         flags: ["Ephemeral"],
       });
       return;
@@ -391,7 +391,7 @@ export async function handleSelectMenuInteraction(
     await interaction.reply({
       content: L(
         `✅ Switched to \`${projectName}\` (\`${projectPath}\`). Session \`${sessionId.slice(0, 8)}...\` will resume on your next message.`,
-        `✅ \`${projectName}\` (\`${projectPath}\`)으로 전환했습니다. 다음 메시지부터 세션 \`${sessionId.slice(0, 8)}...\`을(를) 재개합니다.`,
+        `✅ 已切换到 \`${projectName}\` (\`${projectPath}\`)。下一条消息起将恢复会话 \`${sessionId.slice(0, 8)}...\`。`,
       ),
       flags: ["Ephemeral"],
     });
@@ -411,8 +411,8 @@ export async function handleSelectMenuInteraction(
       await interaction.update({
         embeds: [
           {
-            title: L("✨ New Session", "✨ 새 세션"),
-            description: L("New session is ready.\nA new conversation will start from your next message.", "새 세션이 준비되었습니다.\n다음 메시지부터 새로운 대화가 시작됩니다."),
+            title: L("✨ New Session", "✨ 新会话"),
+            description: L("New session is ready.\nA new conversation will start from your next message.", "新会话已准备好。\n下一条消息起将开始新对话。"),
             color: 0x00ff00,
           },
         ],
@@ -444,29 +444,29 @@ export async function handleSelectMenuInteraction(
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`session-resume:${selectedSessionId}`)
-        .setLabel(L("Resume", "재개"))
+        .setLabel(L("Resume", "恢复"))
         .setStyle(ButtonStyle.Success)
         .setEmoji("▶️"),
       new ButtonBuilder()
         .setCustomId(`session-delete:${selectedSessionId}`)
-        .setLabel(L("Delete", "삭제"))
+        .setLabel(L("Delete", "删除"))
         .setStyle(ButtonStyle.Danger)
         .setEmoji("🗑️"),
       new ButtonBuilder()
         .setCustomId(`session-cancel:_`)
-        .setLabel(L("Cancel", "취소"))
+        .setLabel(L("Cancel", "取消"))
         .setStyle(ButtonStyle.Secondary),
     );
 
     const preview = lastMessage && lastMessage !== "(no message)"
-      ? `\n\n${L("**Last conversation:**", "**마지막 대화:**")}\n${lastMessage.slice(0, 300)}${lastMessage.length > 300 ? "..." : ""}`
+      ? `\n\n${L("**Last conversation:**", "**上次对话：**")}\n${lastMessage.slice(0, 300)}${lastMessage.length > 300 ? "..." : ""}`
       : "";
 
     await interaction.editReply({
       embeds: [
         {
-          title: L("Session Selected", "세션 선택됨"),
-          description: L(`Session: \`${selectedSessionId.slice(0, 8)}...\`\n\nResume or delete this session?`, `세션: \`${selectedSessionId.slice(0, 8)}...\`\n\n이 세션을 재개 또는 삭제하시겠습니까?`) + preview,
+          title: L("Session Selected", "已选择会话"),
+          description: L(`Session: \`${selectedSessionId.slice(0, 8)}...\`\n\nResume or delete this session?`, `会话：\`${selectedSessionId.slice(0, 8)}...\`\n\n恢复还是删除此会话？`) + preview,
           color: 0x7c3aed,
         },
       ],

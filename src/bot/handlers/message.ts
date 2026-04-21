@@ -1,4 +1,4 @@
-import { Message, TextChannel, DMChannel, Attachment, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { Message, TextChannel, DMChannel, ThreadChannel, Attachment, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { getProject, registerProject } from "../../db/database.js";
 import { getConfig } from "../../utils/config.js";
 import { isAllowedUser, checkRateLimit } from "../../security/guard.js";
@@ -20,6 +20,26 @@ const BLOCKED_EXTENSIONS = new Set([
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB (Discord free tier limit)
 
+// ── Hermes patterns ──────────────────────────────────────────────────────────
+
+// 1. Message deduplication — Discord WebSocket RESUME events can replay recent
+//    messages; track processed IDs to ignore replays (Hermes: MessageDeduplicator)
+const processedMessageIds = new Set<string>();
+const DEDUP_MAX_SIZE = 500;
+
+// 2. Text message batching — buffer rapid-fire messages and merge them into one
+//    prompt before sending to Claude (Hermes: _pending_text_batches / 0.6s delay)
+const TEXT_BATCH_DELAY_MS = 800;
+interface BatchEntry {
+  prompts: string[];
+  firstMessage: Message;
+  channel: TextChannel | DMChannel | ThreadChannel;
+  timer: ReturnType<typeof setTimeout>;
+}
+const pendingBatches = new Map<string, BatchEntry>();
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function downloadAttachment(
   attachment: Attachment,
   projectPath: string,
@@ -28,13 +48,13 @@ async function downloadAttachment(
 
   // Block dangerous executables
   if (BLOCKED_EXTENSIONS.has(ext)) {
-    return { skipped: L(`Blocked: \`${attachment.name}\` (dangerous file type)`, `차단됨: \`${attachment.name}\` (위험한 파일 형식)`) };
+    return { skipped: L(`Blocked: \`${attachment.name}\` (dangerous file type)`, `已拦截：\`${attachment.name}\`（危险文件类型）`) };
   }
 
   // Skip files that are too large
   if (attachment.size > MAX_FILE_SIZE) {
     const sizeMB = (attachment.size / 1024 / 1024).toFixed(1);
-    return { skipped: L(`Skipped: \`${attachment.name}\` (${sizeMB}MB exceeds 25MB limit)`, `건너뜀: \`${attachment.name}\` (${sizeMB}MB, 25MB 제한 초과)`) };
+    return { skipped: L(`Skipped: \`${attachment.name}\` (${sizeMB}MB exceeds 25MB limit)`, `已跳过：\`${attachment.name}\`（${sizeMB}MB，超过 25MB 限制）`) };
   }
 
   const uploadDir = path.join(projectPath, ".claude-uploads");
@@ -48,14 +68,14 @@ async function downloadAttachment(
   try {
     const response = await fetch(attachment.url);
     if (!response.ok || !response.body) {
-      return { skipped: L(`Failed to download: \`${attachment.name}\``, `다운로드 실패: \`${attachment.name}\``) };
+      return { skipped: L(`Failed to download: \`${attachment.name}\``, `下载失败：\`${attachment.name}\``) };
     }
 
     const fileStream = fs.createWriteStream(filePath);
     await pipeline(Readable.fromWeb(response.body as any), fileStream);
   } catch (e) {
     console.warn(`[download] Failed to download attachment ${attachment.name}:`, e instanceof Error ? e.message : e);
-    return { skipped: L(`Failed to download: \`${attachment.name}\``, `다운로드 실패: \`${attachment.name}\``) };
+    return { skipped: L(`Failed to download: \`${attachment.name}\``, `下载失败：\`${attachment.name}\``) };
   }
 
   return { filePath, isImage: IMAGE_EXTENSIONS.has(ext) };
@@ -65,11 +85,18 @@ export async function handleMessage(message: Message): Promise<void> {
   // Ignore bots
   if (message.author.bot) return;
 
+  // Deduplication: skip messages already processed (Discord RESUME can replay them)
+  if (processedMessageIds.has(message.id)) return;
+  if (processedMessageIds.size >= DEDUP_MAX_SIZE) {
+    processedMessageIds.delete(processedMessageIds.values().next().value!);
+  }
+  processedMessageIds.add(message.id);
+
   const isDM = !message.guild;
 
   // Auth check
   if (!isAllowedUser(message.author.id)) {
-    await message.reply(L("You are not authorized to use this bot.", "이 봇을 사용할 권한이 없습니다."));
+    await message.reply(L("You are not authorized to use this bot.", "您没有使用此机器人的权限。"));
     return;
   }
 
@@ -80,17 +107,31 @@ export async function handleMessage(message: Message): Promise<void> {
       registerProject(message.channelId, BASE_PROJECT_DIR, "dm");
     }
   } else {
-    // Check if guild channel is registered
+    // If this is a thread, join it (so the bot can send messages) and inherit the parent's project
+    if (message.channel.isThread()) {
+      const thread = message.channel;
+      // Join the thread so we have send permission; safe to call even if already a member
+      try { await thread.join(); } catch {}
+
+      const parentId = thread.parentId;
+      if (parentId && !getProject(message.channelId)) {
+        const parentProject = getProject(parentId);
+        if (parentProject) {
+          registerProject(message.channelId, parentProject.project_path, message.guildId!);
+        }
+      }
+    }
+    // Check if guild channel (or auto-registered thread) is registered
     if (!getProject(message.channelId)) return;
   }
 
   // Rate limit
   if (!checkRateLimit(message.author.id)) {
-    await message.reply(L("Rate limit exceeded. Please wait a moment.", "요청 한도를 초과했습니다. 잠시 후 다시 시도하세요."));
+    await message.reply(L("Rate limit exceeded. Please wait a moment.", "请求过于频繁，请稍后重试。"));
     return;
   }
 
-  // Check for pending custom text input (AskUserQuestion "직접 입력")
+  // Check for pending custom text input (AskUserQuestion "direct text input")
   if (sessionManager.hasPendingCustomInput(message.channelId)) {
     const text = message.content.trim();
     if (text) {
@@ -136,16 +177,16 @@ export async function handleMessage(message: Message): Promise<void> {
 
   if (!prompt) return;
 
-  const channel = message.channel as TextChannel | DMChannel;
+  const channel = message.channel as TextChannel | DMChannel | ThreadChannel;
 
   // If session is active, offer to queue the message
   if (sessionManager.isActive(message.channelId)) {
     if (sessionManager.hasQueue(message.channelId)) {
-      await message.reply(L("⏳ A message is already waiting to be queued. Please press the button first.", "⏳ 이미 큐 추가 대기 중인 메시지가 있습니다. 버튼을 먼저 눌러주세요."));
+      await message.reply(L("⏳ A message is already waiting to be queued. Please press the button first.", "⏳ 已有消息等待加入队列，请先点击按钮。"));
       return;
     }
     if (sessionManager.isQueueFull(message.channelId)) {
-      await message.reply(L("⏳ Queue is full (max 5). Please wait for the current task to finish.", "⏳ 큐가 가득 찼습니다 (최대 5개). 현재 작업 완료를 기다려주세요."));
+      await message.reply(L("⏳ Queue is full (max 5). Please wait for the current task to finish.", "⏳ 队列已满（最多 5 条），请等待当前任务完成。"));
       return;
     }
 
@@ -154,23 +195,52 @@ export async function handleMessage(message: Message): Promise<void> {
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`queue-yes:${message.channelId}`)
-        .setLabel(L("Add to Queue", "큐에 추가"))
+        .setLabel(L("Add to Queue", "加入队列"))
         .setStyle(ButtonStyle.Success)
         .setEmoji("✅"),
       new ButtonBuilder()
         .setCustomId(`queue-no:${message.channelId}`)
-        .setLabel(L("Cancel", "취소"))
+        .setLabel(L("Cancel", "取消"))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji("❌"),
     );
 
     await message.reply({
-      content: L("⏳ A previous task is in progress. Process this automatically when done?", "⏳ 이전 작업이 진행 중입니다. 완료 후 자동으로 처리할까요?"),
+      content: L("⏳ A previous task is in progress. Process this automatically when done?", "⏳ 上一个任务正在进行中，完成后自动处理此消息？"),
       components: [row],
     });
     return;
   }
 
-  // Send message to Claude session
-  await sessionManager.sendMessage(channel, prompt, message);
+  // Show typing indicator immediately — before the batch delay and before sendMessage,
+  // so the user sees "is typing…" right away instead of 800ms of silence.
+  channel.sendTyping().catch(() => {});
+
+  // Text batching: accumulate rapid messages and flush as one combined prompt after
+  // TEXT_BATCH_DELAY_MS of silence (Hermes pattern). Each new message resets the timer.
+  const existing = pendingBatches.get(message.channelId);
+  if (existing) {
+    existing.prompts.push(prompt);
+    clearTimeout(existing.timer);
+  } else {
+    pendingBatches.set(message.channelId, {
+      prompts: [prompt],
+      firstMessage: message,
+      channel,
+      timer: null!,
+    });
+  }
+  const batch = pendingBatches.get(message.channelId)!;
+  batch.timer = setTimeout(async () => {
+    pendingBatches.delete(message.channelId);
+    // Join multiple rapid messages with a separator so Claude sees them as distinct parts
+    const combined = batch.prompts.length > 1
+      ? batch.prompts.join("\n\n---\n\n")
+      : batch.prompts[0];
+    try {
+      await sessionManager.sendMessage(batch.channel, combined, batch.firstMessage);
+    } catch (err) {
+      console.error("[batch] sendMessage error:", err);
+    }
+  }, TEXT_BATCH_DELAY_MS);
 }

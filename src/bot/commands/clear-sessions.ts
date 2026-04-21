@@ -22,7 +22,7 @@ export async function execute(
 
   if (!project) {
     await interaction.editReply({
-      content: L("This channel is not registered to any project. Use `/register` first.", "이 채널은 어떤 프로젝트에도 등록되어 있지 않습니다. 먼저 `/register`를 사용하세요."),
+      content: L("This channel is not registered to any project. Use `/register` first.", "此频道未注册任何项目，请先使用 `/register`。"),
     });
     return;
   }
@@ -30,7 +30,7 @@ export async function execute(
   const sessionDir = findSessionDir(project.project_path);
   if (!sessionDir) {
     await interaction.editReply({
-      content: L(`No session directory found for \`${project.project_path}\``, `\`${project.project_path}\`에 대한 세션 디렉토리를 찾을 수 없습니다`),
+      content: L(`No session directory found for \`${project.project_path}\``, `找不到 \`${project.project_path}\` 的会话目录`),
     });
     return;
   }
@@ -38,7 +38,7 @@ export async function execute(
   const files = fs.readdirSync(sessionDir).filter((f) => f.endsWith(".jsonl"));
   if (files.length === 0) {
     await interaction.editReply({
-      content: L("No session files to delete.", "삭제할 세션 파일이 없습니다."),
+      content: L("No session files to delete.", "没有可删除的会话文件。"),
     });
     return;
   }
@@ -56,10 +56,10 @@ export async function execute(
   await interaction.editReply({
     embeds: [
       {
-        title: L("Sessions Cleared", "세션 정리됨"),
+        title: L("Sessions Cleared", "会话已清理"),
         description: [
           `Project: \`${project.project_path}\``,
-          L(`Deleted **${deleted}** session file(s)`, `**${deleted}**개의 세션 파일이 삭제되었습니다`),
+          L(`Deleted **${deleted}** session file(s)`, `已删除 **${deleted}** 个会话文件`),
         ].join("\n"),
         color: 0xff6b6b,
       },

@@ -20,7 +20,7 @@ export async function execute(
 
   if (!project) {
     await interaction.editReply({
-      content: L("This channel is not registered to any project.", "이 채널은 어떤 프로젝트에도 등록되어 있지 않습니다."),
+      content: L("This channel is not registered to any project.", "此频道未注册任何项目。"),
     });
     return;
   }
@@ -33,8 +33,8 @@ export async function execute(
   await interaction.editReply({
     embeds: [
       {
-        title: L("Project Unregistered", "프로젝트 등록 해제됨"),
-        description: L(`Removed link to \`${project.project_path}\``, `\`${project.project_path}\` 연결이 해제되었습니다`),
+        title: L("Project Unregistered", "项目注册已取消"),
+        description: L(`Removed link to \`${project.project_path}\``, `\`${project.project_path}\` 连接已断开`),
         color: 0xff0000,
       },
     ],

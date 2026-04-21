@@ -47,7 +47,7 @@ export async function startBot(): Promise<Client> {
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.DirectMessages,
     ],
-    partials: [Partials.Channel, Partials.User],
+    partials: [Partials.Channel, Partials.Message, Partials.User],
   });
 
   // Register slash commands after successful login (network guaranteed)
@@ -85,7 +85,7 @@ export async function startBot(): Promise<Client> {
         // Auth check
         if (!isAllowedUser(interaction.user.id)) {
           await interaction.reply({
-            content: L("You are not authorized to use this bot.", "이 봇을 사용할 권한이 없습니다."),
+            content: L("You are not authorized to use this bot.", "您没有使用此机器人的权限。"),
             flags: ["Ephemeral"],
           });
           return;
@@ -105,7 +105,7 @@ export async function startBot(): Promise<Client> {
       }
     } catch (error) {
       console.error("Interaction error:", error);
-      const content = L("An error occurred while processing your command.", "명령을 처리하는 중 오류가 발생했습니다.");
+      const content = L("An error occurred while processing your command.", "处理命令时发生错误。");
       try {
         if (interaction.isRepliable()) {
           if (interaction.replied || interaction.deferred) {
@@ -144,7 +144,7 @@ export async function startBot(): Promise<Client> {
       console.error("messageCreate error:", error);
       try {
         if (message.channel.isSendable()) {
-          await message.reply(L("An error occurred while processing your message.", "메시지를 처리하는 중 오류가 발생했습니다."));
+          await message.reply(L("An error occurred while processing your message.", "处理消息时发生错误。"));
         }
       } catch {
         // ignore reply error

@@ -25,8 +25,10 @@ async function getSessionMeta(filePath: string): Promise<{ text: string; timesta
   let timestamp = "";
   let text = "";
   let cwd = "";
+  let lineCount = 0;
 
   for await (const line of rl) {
+    if (++lineCount > 60) break; // stop early for large files
     try {
       const entry = JSON.parse(line);
       if (!cwd && entry.cwd) cwd = entry.cwd as string;
@@ -51,7 +53,7 @@ async function getSessionMeta(filePath: string): Promise<{ text: string; timesta
   rl.close();
   stream.destroy();
 
-  return { text: text || "(empty session)", timestamp, cwd };
+  return { text, timestamp, cwd };
 }
 
 async function listAllSessions(): Promise<ResumeSessionInfo[]> {
@@ -73,7 +75,7 @@ async function listAllSessions(): Promise<ResumeSessionInfo[]> {
 
       const sessionId = file.replace(".jsonl", "");
       const { text, timestamp, cwd } = await getSessionMeta(filePath);
-      if (text === "(empty session)" || !cwd) continue;
+      if (!cwd) continue;
 
       allSessions.push({
         sessionId,
@@ -100,7 +102,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.editReply({
       content: L(
         "No Claude Code sessions found on this machine.",
-        "이 머신에서 Claude Code 세션을 찾을 수 없습니다.",
+        "此机器上找不到 Claude Code 会话。",
       ),
     });
     return;
@@ -113,14 +115,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const diffHr = Math.floor(diffMs / 3600000);
     const diffDay = Math.floor(diffMs / 86400000);
     const timeStr =
-      diffMin < 1 ? L("just now", "방금") :
-      diffMin < 60 ? L(`${diffMin}m ago`, `${diffMin}분 전`) :
-      diffHr < 24 ? L(`${diffHr}h ago`, `${diffHr}시간 전`) :
-      diffDay < 7 ? L(`${diffDay}d ago`, `${diffDay}일 전`) :
-      date.toLocaleDateString(L("en-US", "ko-KR"), { month: "short", day: "numeric" });
+      diffMin < 1 ? L("just now", "刚刚") :
+      diffMin < 60 ? L(`${diffMin}m ago`, `${diffMin} 分钟前`) :
+      diffHr < 24 ? L(`${diffHr}h ago`, `${diffHr} 小时前`) :
+      diffDay < 7 ? L(`${diffDay}d ago`, `${diffDay} 天前`) :
+      date.toLocaleDateString(L("en-US", "zh-CN"), { month: "short", day: "numeric" });
 
     const projectName = s.projectPath.split(/[\\/]/).pop() || s.projectPath;
-    const label = (s.firstMessage.slice(0, 50) || `Session ${i + 1}`);
+    const label = s.firstMessage.slice(0, 50) || L(`[${projectName}] Session ${i + 1}`, `[${projectName}] 会话 ${i + 1}`);
     const desc = `${projectName} | ${timeStr} | ${s.sessionId.slice(0, 8)}...`;
 
     return {
@@ -132,7 +134,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId("resume-select")
-    .setPlaceholder(L("Select a session to resume...", "재개할 세션을 선택하세요..."))
+    .setPlaceholder(L("Select a session to resume...", "选择要恢复的会话..."))
     .addOptions(options);
 
   const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
@@ -140,16 +142,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.editReply({
     embeds: [
       {
-        title: L("Resume Claude Code Session", "Claude Code 세션 재개"),
+        title: L("Resume Claude Code Session", "恢复 Claude Code 会话"),
         description: [
           L(
             `Found **${sessions.length}** session(s) across all projects on this machine.`,
-            `이 머신의 모든 프로젝트에서 **${sessions.length}**개의 세션을 찾았습니다.`,
+            `在此机器的所有项目中找到了 **${sessions.length}** 个会话。`,
           ),
           "",
           L(
             "Select a session to resume it in this channel. The channel's project will be updated to match.",
-            "세션을 선택하면 이 채널에서 재개됩니다. 채널의 프로젝트도 해당 세션의 프로젝트로 업데이트됩니다.",
+            "选择会话后将在此频道中恢复，频道的项目也会更新为该会话的项目。",
           ),
         ].join("\n"),
         color: 0x0099ff,

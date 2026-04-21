@@ -13,6 +13,13 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((v) => v === "true"),
+  // Show Claude's reasoning/thinking process in Discord.
+  // Requires a thinking-capable model (claude-opus-4 / claude-sonnet-4-5+).
+  // Default false — set true only if your Claude Code is using a supported model.
+  SHOW_THINKING: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 export type Config = z.infer<typeof envSchema>;

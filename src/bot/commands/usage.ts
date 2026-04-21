@@ -30,11 +30,11 @@ function formatResetTime(isoStr: string): string {
   const resetDate = new Date(isoStr);
   const now = new Date();
   const diffMs = resetDate.getTime() - now.getTime();
-  if (diffMs <= 0) return L("resetting soon", "곧 초기화");
+  if (diffMs <= 0) return L("resetting soon", "即将刷新");
   const diffH = Math.floor(diffMs / 3600000);
   const diffM = Math.floor((diffMs % 3600000) / 60000);
-  if (diffH > 0) return L(`${diffH}h ${diffM}m left`, `${diffH}시간 ${diffM}분 후 초기화`);
-  return L(`${diffM}m left`, `${diffM}분 후 초기화`);
+  if (diffH > 0) return L(`${diffH}h ${diffM}m left`, `${diffH} 小时 ${diffM} 分钟后刷新`);
+  return L(`${diffM}m left`, `${diffM} 分钟后刷新`);
 }
 
 interface Credentials {
@@ -188,7 +188,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.editReply({
       content: L(
         "Could not fetch usage data. Make sure you're logged into Claude Code (`claude` CLI).",
-        "사용량 정보를 가져올 수 없습니다. Claude Code(`claude` CLI)에 로그인되어 있는지 확인하세요."
+        "无法获取使用量信息，请确认已登录 Claude Code（`claude` CLI）。"
       ),
     });
     return;
@@ -199,19 +199,19 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (data.five_hour) {
     const pct = Math.round(data.five_hour.utilization);
     lines.push(
-      `**${L("Session (5hr)", "세션 (5시간)")}**  \`${progressBar(pct)}\`  **${pct}%**  ·  ${formatResetTime(data.five_hour.resets_at)}`
+      `**${L("Session (5hr)", "会话（5 小时）")}**  \`${progressBar(pct)}\`  **${pct}%**  ·  ${formatResetTime(data.five_hour.resets_at)}`
     );
   }
   if (data.seven_day) {
     const pct = Math.round(data.seven_day.utilization);
     lines.push(
-      `**${L("Weekly (7day)", "주간 (7일)")}**  \`${progressBar(pct)}\`  **${pct}%**  ·  ${formatResetTime(data.seven_day.resets_at)}`
+      `**${L("Weekly (7day)", "每周（7 天）")}**  \`${progressBar(pct)}\`  **${pct}%**  ·  ${formatResetTime(data.seven_day.resets_at)}`
     );
   }
   if (data.seven_day_sonnet) {
     const pct = Math.round(data.seven_day_sonnet.utilization);
     lines.push(
-      `**${L("Sonnet (7day)", "소네트 (7일)")}**  \`${progressBar(pct)}\`  **${pct}%**  ·  ${formatResetTime(data.seven_day_sonnet.resets_at)}`
+      `**${L("Sonnet (7day)", "Sonnet（7 天）")}**  \`${progressBar(pct)}\`  **${pct}%**  ·  ${formatResetTime(data.seven_day_sonnet.resets_at)}`
     );
   }
 
@@ -221,14 +221,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const fetchedDate = new Date(data._fetched_at);
     const diffMin = Math.floor((Date.now() - fetchedDate.getTime()) / 60000);
     if (diffMin < 1) {
-      footerText = L("Just now", "방금 갱신") + "  ·  " + footerText;
+      footerText = L("Just now", "刚刚刷新") + "  ·  " + footerText;
     } else {
-      footerText = L(`${diffMin}m ago`, `${diffMin}분 전 갱신`) + "  ·  " + footerText;
+      footerText = L(`${diffMin}m ago`, `${diffMin} 分钟前刷新`) + "  ·  " + footerText;
     }
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(L("📊 Claude Code Usage", "📊 Claude Code 사용량"))
+    .setTitle(L("📊 Claude Code Usage", "📊 Claude Code 使用量"))
     .setDescription(lines.join("\n\n"))
     .setColor(0x7c3aed)
     .setFooter({ text: footerText })
