@@ -144,6 +144,7 @@ class SessionManager {
           permissionMode: "default",
           env: { ...process.env, ANTHROPIC_API_KEY: undefined, PATH: `${path.dirname(process.execPath)}:${process.env.PATH ?? ""}` },
           ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+          ...(project.model ? { model: project.model } : {}),
           // Thinking is opt-in: only pass the option when SHOW_THINKING=true
           // (adaptive thinking requires a compatible model; forcing it on unsupported
           //  models causes the query to fail silently and results to disappear)
