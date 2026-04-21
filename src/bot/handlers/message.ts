@@ -32,7 +32,7 @@ const DEDUP_MAX_SIZE = 500;
 const TEXT_BATCH_DELAY_MS = 800;
 interface BatchEntry {
   prompts: string[];
-  firstMessage: Message;
+  firstMessage: Message | undefined;
   channel: TextChannel | DMChannel | ThreadChannel;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -82,8 +82,9 @@ async function downloadAttachment(
 }
 
 export async function handleMessage(message: Message): Promise<void> {
-  // Ignore bots
+  // Ignore bots and system messages (e.g. ThreadCreated notifications)
   if (message.author.bot) return;
+  if (message.system) return;
 
   // Deduplication: skip messages already processed (Discord RESUME can replay them)
   if (processedMessageIds.has(message.id)) return;
@@ -93,11 +94,23 @@ export async function handleMessage(message: Message): Promise<void> {
   processedMessageIds.add(message.id);
 
   const isDM = !message.guild;
+  const isThread = message.channel.isThread();
+  // @mention detection: only relevant for server non-thread channels
+  // ignoreRepliedUser: true ensures Discord's auto-mention from reply buttons
+  // doesn't count — only explicit @bot in the message text triggers this
+  const botMentioned = !isDM && !isThread &&
+    message.mentions.has(message.client.user!, { ignoreRepliedUser: true });
 
-  // Auth check
-  if (!isAllowedUser(message.author.id)) {
-    await message.reply(L("You are not authorized to use this bot.", "您没有使用此机器人的权限。"));
-    return;
+
+  // In server non-thread channels, only respond when @mentioned
+  if (!isDM && !isThread && !botMentioned) return;
+
+  // Auth check: required for DMs; server @mentions and threads are open to anyone
+  if (isDM) {
+    if (!isAllowedUser(message.author.id)) {
+      await message.reply(L("You are not authorized to use this bot.", "您没有使用此机器人的权限。"));
+      return;
+    }
   }
 
   if (isDM) {
@@ -108,7 +121,7 @@ export async function handleMessage(message: Message): Promise<void> {
     }
   } else {
     // If this is a thread, join it (so the bot can send messages) and inherit the parent's project
-    if (message.channel.isThread()) {
+    if (isThread) {
       const thread = message.channel;
       // Join the thread so we have send permission; safe to call even if already a member
       try { await thread.join(); } catch {}
@@ -142,6 +155,11 @@ export async function handleMessage(message: Message): Promise<void> {
   }
 
   let prompt = message.content.trim();
+
+  // Strip bot @mention from prompt so Claude doesn't see "<@botId>"
+  if (botMentioned) {
+    prompt = prompt.replace(/<@!?\d+>/g, "").trim();
+  }
 
   const project = getProject(message.channelId)!;
 
@@ -177,29 +195,56 @@ export async function handleMessage(message: Message): Promise<void> {
 
   if (!prompt) return;
 
-  const channel = message.channel as TextChannel | DMChannel | ThreadChannel;
+  let channel = message.channel as TextChannel | DMChannel | ThreadChannel;
+  let batchKey = message.channelId;
+  // firstMessage is passed to sendMessage so it can reply() to the user's message;
+  // when we create a new thread the association is already visible, so skip it.
+  let firstMessage: Message | undefined = message;
+
+  // React immediately so the user knows the message was received before the thread appears
+  if (botMentioned) message.react("👀").catch(() => {});
+
+  // Feature: create a thread for @mention in server channel so each conversation
+  // gets its own isolated sub-chat. The thread inherits the parent channel's project.
+  if (!isDM && !isThread && botMentioned) {
+    const threadName = prompt.slice(0, 80) || "Claude";
+    try {
+      const thread = await message.startThread({
+        name: threadName,
+        autoArchiveDuration: 60,
+      });
+      try { await thread.join(); } catch {}
+      registerProject(thread.id, project.project_path, message.guildId!);
+      channel = thread;
+      batchKey = thread.id;
+      firstMessage = undefined; // thread was created from the message; no need to reply
+    } catch (e) {
+      console.warn("[thread] Failed to create thread:", e);
+      // Falls back to responding in parent channel
+    }
+  }
 
   // If session is active, offer to queue the message
-  if (sessionManager.isActive(message.channelId)) {
-    if (sessionManager.hasQueue(message.channelId)) {
+  if (sessionManager.isActive(batchKey)) {
+    if (sessionManager.hasQueue(batchKey)) {
       await message.reply(L("⏳ A message is already waiting to be queued. Please press the button first.", "⏳ 已有消息等待加入队列，请先点击按钮。"));
       return;
     }
-    if (sessionManager.isQueueFull(message.channelId)) {
+    if (sessionManager.isQueueFull(batchKey)) {
       await message.reply(L("⏳ Queue is full (max 5). Please wait for the current task to finish.", "⏳ 队列已满（最多 5 条），请等待当前任务完成。"));
       return;
     }
 
-    sessionManager.setPendingQueue(message.channelId, channel, prompt);
+    sessionManager.setPendingQueue(batchKey, channel, prompt);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`queue-yes:${message.channelId}`)
+        .setCustomId(`queue-yes:${batchKey}`)
         .setLabel(L("Add to Queue", "加入队列"))
         .setStyle(ButtonStyle.Success)
         .setEmoji("✅"),
       new ButtonBuilder()
-        .setCustomId(`queue-no:${message.channelId}`)
+        .setCustomId(`queue-no:${batchKey}`)
         .setLabel(L("Cancel", "取消"))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji("❌"),
@@ -218,21 +263,21 @@ export async function handleMessage(message: Message): Promise<void> {
 
   // Text batching: accumulate rapid messages and flush as one combined prompt after
   // TEXT_BATCH_DELAY_MS of silence (Hermes pattern). Each new message resets the timer.
-  const existing = pendingBatches.get(message.channelId);
+  const existing = pendingBatches.get(batchKey);
   if (existing) {
     existing.prompts.push(prompt);
     clearTimeout(existing.timer);
   } else {
-    pendingBatches.set(message.channelId, {
+    pendingBatches.set(batchKey, {
       prompts: [prompt],
-      firstMessage: message,
+      firstMessage,
       channel,
       timer: null!,
     });
   }
-  const batch = pendingBatches.get(message.channelId)!;
+  const batch = pendingBatches.get(batchKey)!;
   batch.timer = setTimeout(async () => {
-    pendingBatches.delete(message.channelId);
+    pendingBatches.delete(batchKey);
     // Join multiple rapid messages with a separator so Claude sees them as distinct parts
     const combined = batch.prompts.length > 1
       ? batch.prompts.join("\n\n---\n\n")
