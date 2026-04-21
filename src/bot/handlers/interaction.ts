@@ -9,8 +9,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { isAllowedUser } from "../../security/guard.js";
 import { sessionManager } from "../../claude/session-manager.js";
-import { upsertSession, getProject, getSession, registerProject } from "../../db/database.js";
+import { upsertSession, getProject, getSession, registerProject, setProjectModel } from "../../db/database.js";
 import { findSessionDir, getLastAssistantMessage, findProjectPathBySessionId } from "../commands/sessions.js";
+import { MODEL_CHOICES } from "../commands/model.js";
 import { L } from "../../utils/i18n.js";
 
 export async function handleButtonInteraction(
@@ -363,6 +364,42 @@ export async function handleSelectMenuInteraction(
     await interaction.update({
       content: L(`✅ Selected: **${answer}**`, `✅ 已选择：**${answer}**`),
       embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  if (interaction.customId === "model-select") {
+    const value = interaction.values[0];
+    const modelValue = value === "default" ? null : value;
+    const channelId = interaction.channelId;
+
+    if (!getProject(channelId)) {
+      await interaction.reply({
+        content: L(
+          "This channel is not registered. Use `/register` first.",
+          "此频道未注册，请先使用 `/register`。",
+        ),
+        flags: ["Ephemeral"],
+      });
+      return;
+    }
+
+    setProjectModel(channelId, modelValue);
+    const choice = MODEL_CHOICES.find((m) => m.id === value);
+    const label = choice?.label ?? value;
+
+    await interaction.update({
+      embeds: [
+        {
+          title: L("Claude Model", "Claude 模型"),
+          description: L(
+            `✅ Model set to **${label}**. Takes effect on the next message.`,
+            `✅ 模型已设置为 **${label}**，下一条消息生效。`,
+          ),
+          color: 0x00ff00,
+        },
+      ],
       components: [],
     });
     return;

@@ -29,6 +29,12 @@ export function initDatabase(): void {
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
+
+  // Migration: add `model` column to projects if missing
+  const cols = db.prepare("PRAGMA table_info(projects)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "model")) {
+    db.exec("ALTER TABLE projects ADD COLUMN model TEXT");
+  }
 }
 
 export function getDb(): Database.Database {
@@ -71,6 +77,16 @@ export function setAutoApprove(
 ): void {
   db.prepare("UPDATE projects SET auto_approve = ? WHERE channel_id = ?").run(
     autoApprove ? 1 : 0,
+    channelId,
+  );
+}
+
+export function setProjectModel(
+  channelId: string,
+  model: string | null,
+): void {
+  db.prepare("UPDATE projects SET model = ? WHERE channel_id = ?").run(
+    model,
     channelId,
   );
 }

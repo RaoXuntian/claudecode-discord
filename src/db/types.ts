@@ -5,6 +5,7 @@ export interface Project {
   project_path: string;
   guild_id: string;
   auto_approve: number; // 0 or 1
+  model: string | null; // Claude model ID override (null = use default)
   created_at: string;
 }
 
